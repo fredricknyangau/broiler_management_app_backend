@@ -23,7 +23,7 @@ COPY pyproject.toml poetry.lock ./
 # Or just use pip if poetry is too heavy, but let's stick to standard practice
 RUN pip install poetry \
     && poetry config virtualenvs.create false \
-    && poetry install --no-root --no-dev --no-interaction --no-ansi
+    && poetry install --no-root --only main --no-interaction --no-ansi
 
 # Copy application code
 COPY . .
