@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Broiler Farm Management API"
     DEBUG: bool = False
     API_V1_PREFIX: str = "/api/v1"
+    BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
     
     # Notifications (for future implementation)
     SMS_PROVIDER_API_KEY: Optional[str] = None
