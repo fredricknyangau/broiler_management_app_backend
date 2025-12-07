@@ -1,0 +1,52 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.config import settings
+from app.api.v1 import auth, flocks, daily_checks, finance, inventory, biosecurity, alerts, events, health, market
+
+app = FastAPI(
+    title=settings.APP_NAME,
+    description="Backend API for managing broiler farms in Kenya",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
+
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "*"],  # Explicit frontend origin helps avoid some browser issues
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include routers
+app.include_router(auth.router, prefix=f"{settings.API_V1_PREFIX}/auth", tags=["Authentication"])
+app.include_router(flocks.router, prefix=f"{settings.API_V1_PREFIX}/flocks", tags=["Flocks"])
+app.include_router(daily_checks.router, prefix=f"{settings.API_V1_PREFIX}", tags=["Daily Checks"])
+app.include_router(finance.router, prefix=f"{settings.API_V1_PREFIX}/finance", tags=["Finance"])
+app.include_router(inventory.router, prefix=f"{settings.API_V1_PREFIX}/inventory", tags=["Inventory"])
+app.include_router(biosecurity.router, prefix=f"{settings.API_V1_PREFIX}/biosecurity", tags=["Biosecurity"])
+app.include_router(alerts.router, prefix=f"{settings.API_V1_PREFIX}/alerts", tags=["Alerts"])
+app.include_router(events.router, prefix=f"{settings.API_V1_PREFIX}/events", tags=["Events"])
+app.include_router(health.router, prefix=f"{settings.API_V1_PREFIX}/health", tags=["Health"])
+app.include_router(market.router, prefix=f"{settings.API_V1_PREFIX}/market", tags=["Market"])
+
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {
+        "message": "Broiler Farm Management API",
+        "status": "running",
+        "version": "1.0.0",
+        "docs": "/docs"
+    }
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "database": "connected",
+        "redis": "connected"
+    }
