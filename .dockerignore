@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+!.env.production.example
+venv/
+__pycache__/
+.git/
+.pytest_cache/
+*.pyc
+*.pyo
+*.pyd
+.coverage
+htmlcov/
