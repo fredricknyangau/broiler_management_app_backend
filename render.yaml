@@ -1,0 +1,46 @@
+services:
+  # Python Backend Service
+  - type: web
+    name: broiler-farm-backend
+    env: python
+    region: oregon # or your preferred region
+    plan: free
+    buildCommand: "./scripts/build.sh" 
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: broiler-farm-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: broiler-farm-redis
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: APP_NAME
+        value: "Broiler Farm Management API"
+      - key: DEBUG
+        value: "false"
+      - key: API_V1_PREFIX
+        value: "/api/v1"
+      - key: BACKEND_CORS_ORIGINS
+        value: '["https://kukufiti.vercel.app"]' # Replace with your actual frontend URL
+
+  # Redis Service
+  - type: redis
+    name: broiler-farm-redis
+    region: oregon
+    plan: free # Note: Redis free tier is ephemeral (data lost on restart). Upgrade for persistence.
+    ipAllowList: [] # Only allow internal connections
+
+databases:
+  # Postgres Database
+  - name: broiler-farm-db
+    databaseName: broiler_farm
+    user: broiler_user
+    plan: free
+    region: oregon
