@@ -1,7 +1,7 @@
 services:
   # Python Backend Service
   - type: web
-    name: broiler-farm-backend
+    name: kukufiti-backend
     env: docker
     region: oregon # User preference preserved
     plan: free
@@ -10,12 +10,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: broiler-farm-db
+          name: kukufiti-db
           property: connectionString
       - key: REDIS_URL
         fromService:
           type: redis
-          name: broiler-farm-redis
+          name: kukufiti-redis
           property: connectionString
       - key: SECRET_KEY
         generateValue: true
@@ -26,19 +26,19 @@ services:
       - key: API_V1_PREFIX
         value: "/api/v1"
       - key: BACKEND_CORS_ORIGINS
-        value: '["https://kukufiti.vercel.app"]' # Replace with your actual frontend URL
+        value: '["https://kukufiti.vercel.app"]'
 
   # Redis Service
   - type: redis
-    name: broiler-farm-redis
+    name: kukufiti-redis
     region: oregon
     plan: free # Note: Redis free tier is ephemeral (data lost on restart). Upgrade for persistence.
     ipAllowList: [] # Only allow internal connections
 
 databases:
   # Postgres Database
-  - name: broiler-farm-db
-    databaseName: broiler_farm
-    user: broiler_user
+  - name: kukufiti-db
+    databaseName: kukufiti
+    user: kukufiti_user
     plan: free
     region: oregon
