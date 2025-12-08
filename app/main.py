@@ -4,6 +4,14 @@ from fastapi.middleware.gzip import GZipMiddleware
 from app.config import settings
 from app.api.v1 import auth, flocks, daily_checks, finance, inventory, biosecurity, alerts, events, health, market, admin, data, people, analytics
 
+
+import os
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 app = FastAPI(
     title=settings.APP_NAME,
     description="Backend API for managing broiler farms in Kenya",
@@ -11,6 +19,15 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Starting up...")
+    logger.info(f"Configuration REDIS_URL: {settings.REDIS_URL}")
+    logger.info(f"Environment REDIS_URL: {os.environ.get('REDIS_URL')}")
+    # Log all env vars to see what's available (masked for security if needed, but for now just dumping keys)
+    logger.info(f"Available Environment Variables: {list(os.environ.keys())}")
+
 
 # CORS configuration
 app.add_middleware(
