@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field, UUID4
-from typing import Optional
+from typing import Optional, Dict, Any
 from datetime import datetime
 
 
@@ -9,6 +9,9 @@ class UserBase(BaseModel):
     full_name: Optional[str] = None
     phone_number: Optional[str] = None
     location: Optional[str] = None
+    is_active: Optional[bool] = True
+    is_superuser: bool = False
+    preferences: Optional[Dict[str, Any]] = {}
 
 
 class UserCreate(UserBase):
@@ -22,10 +25,19 @@ class UserLogin(BaseModel):
     password: str
 
 
+class UserUpdate(BaseModel):
+    """Schema for user updates."""
+    full_name: Optional[str] = None
+    phone_number: Optional[str] = None
+    location: Optional[str] = None
+    preferences: Optional[Dict[str, Any]] = None
+
+
 class UserResponse(UserBase):
     """Schema for user profile response."""
     id: UUID4
     is_active: bool
+    is_superuser: bool
     created_at: datetime
     
     class Config:
@@ -41,3 +53,4 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     """Schema for token payload data."""
     user_id: Optional[str] = None
+

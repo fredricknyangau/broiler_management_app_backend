@@ -59,3 +59,17 @@ def set_tenant_context(db: Session, user: User):
         text(f"SET LOCAL app.current_user_id = '{str(user.id)}'")
     )
     db.commit()
+
+
+def get_current_active_superuser(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """
+    Dependency to check if current user is a superuser.
+    """
+    if not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The user doesn't have enough privileges"
+        )
+    return current_user

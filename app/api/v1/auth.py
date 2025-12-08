@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import timedelta
 
 from app.api.deps import get_db, get_current_user
-from app.schemas.user import UserCreate, UserLogin, UserResponse, Token
+from app.schemas.user import UserCreate, UserLogin, UserResponse, Token, UserUpdate
 from app.services.user_service import UserService
 from app.core.security import create_access_token
 from app.config import settings
@@ -99,9 +99,7 @@ def get_current_user_profile(
 
 @router.put("/me", response_model=UserResponse)
 def update_profile(
-    full_name: str = None,
-    phone_number: str = None,
-    location: str = None,
+    user_update: UserUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -112,11 +110,12 @@ def update_profile(
     """
     service = UserService(db)
     
+    # create dict from pydantic model, excluding None values
+    update_data = user_update.model_dump(exclude_unset=True)
+
     updated_user = service.update_user(
         user_id=str(current_user.id),
-        full_name=full_name,
-        phone_number=phone_number,
-        location=location
+        **update_data
     )
     
     return updated_user

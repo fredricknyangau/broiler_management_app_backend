@@ -32,7 +32,10 @@ async def create_daily_check(
     set_tenant_context(db, current_user)
     
     # Verify flock ownership
-    flock = db.query(Flock).filter(Flock.id == check_data.flock_id).first()
+    flock = db.query(Flock).filter(
+        Flock.id == check_data.flock_id,
+        Flock.farmer_id == current_user.id
+    ).first()
     if not flock:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -99,6 +102,17 @@ async def get_daily_checks(
     """
     set_tenant_context(db, current_user)
     
+    # Verify flock ownership
+    flock = db.query(Flock).filter(
+        Flock.id == flock_id,
+        Flock.farmer_id == current_user.id
+    ).first()
+    if not flock:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Flock {flock_id} not found"
+        )
+    
     # Default to last 30 days if no dates provided
     if not end_date:
         end_date = date.today()
@@ -127,6 +141,17 @@ async def get_daily_check_by_date(
     - Returns 404 if no check exists for that date.
     """
     set_tenant_context(db, current_user)
+    
+    # Verify flock ownership
+    flock = db.query(Flock).filter(
+        Flock.id == flock_id,
+        Flock.farmer_id == current_user.id
+    ).first()
+    if not flock:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Flock {flock_id} not found"
+        )
     
     check = db.query(DailyCheck).filter(
         DailyCheck.flock_id == flock_id,

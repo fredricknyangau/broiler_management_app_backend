@@ -11,13 +11,13 @@ class Alert(Base, UUIDMixin, TimestampMixin):
     """
     __tablename__ = "alerts"
 
-    flock_id = Column(UUID(as_uuid=True), ForeignKey("flocks.id", ondelete="CASCADE"), nullable=False, index=True)
+    flock_id = Column(UUID(as_uuid=True), ForeignKey("flocks.id", ondelete="CASCADE"), nullable=False)
     alert_type = Column(String(100), nullable=False, doc="Type: disease_risk, low_feed, weight_deviation...")
-    severity = Column(String(20), nullable=False, index=True, doc="Severity: low, medium, high, critical")
+    severity = Column(String(20), nullable=False, doc="Severity: low, medium, high, critical")
     title = Column(String(255), nullable=False)
     message = Column(Text, nullable=False)
-    status = Column(String(20), default="active", nullable=False, index=True, doc="active, acknowledged, resolved")
-    triggered_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False, index=True)
+    status = Column(String(20), default="active", nullable=False, doc="active, acknowledged, resolved")
+    triggered_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     acknowledged_at = Column(DateTime(timezone=True))
     resolved_at = Column(DateTime(timezone=True))
     alert_metadata = Column(JSONB, doc="Contextual data (e.g. sensor readings, inventory id)")

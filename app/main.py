@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.api.v1 import auth, flocks, daily_checks, finance, inventory, biosecurity, alerts, events, health, market
+from app.api.v1 import auth, flocks, daily_checks, finance, inventory, biosecurity, alerts, events, health, market, admin
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -31,6 +31,7 @@ app.include_router(alerts.router, prefix=f"{settings.API_V1_PREFIX}/alerts", tag
 app.include_router(events.router, prefix=f"{settings.API_V1_PREFIX}/events", tags=["Events"])
 app.include_router(health.router, prefix=f"{settings.API_V1_PREFIX}/health", tags=["Health"])
 app.include_router(market.router, prefix=f"{settings.API_V1_PREFIX}/market", tags=["Market"])
+app.include_router(admin.router, prefix=f"{settings.API_V1_PREFIX}/admin", tags=["Admin"])
 
 @app.get("/")
 async def root():

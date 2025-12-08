@@ -11,8 +11,8 @@ class BaseEvent(UUIDMixin, TimestampMixin):
     Provides common fields like ID, flock reference, date, and time.
     """
     event_id = Column(UUID(as_uuid=True), unique=True, nullable=False, doc="Idempotency key provided by client")
-    flock_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    event_date = Column(Date, nullable=False, index=True)
+    flock_id = Column(UUID(as_uuid=True), nullable=False)
+    event_date = Column(Date, nullable=False)
     event_time = Column(Time, default=datetime.now().time)
 
     __abstract__ = True
@@ -86,7 +86,7 @@ class VaccinationEvent(Base, BaseEvent):
     dosage = Column(String(100), doc="Dosage per bird or total")
     administered_by = Column(String(255))
     batch_number = Column(String(100), doc="Vaccine batch number")
-    next_due_date = Column(Date, index=True, doc="Date for next dose/booster")
+    next_due_date = Column(Date, doc="Date for next dose/booster")
     notes = Column(Text)
 
     # Relationships
