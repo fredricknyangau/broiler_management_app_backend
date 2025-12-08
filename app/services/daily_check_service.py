@@ -61,6 +61,10 @@ class DailyCheckService:
             event_data["flock_id"] = flock_id
             event_data["event_date"] = check_date
             
+            # Force Primary Key to match Idempotency Key (event_id)
+            if "event_id" in event_data:
+                event_data["id"] = event_data["event_id"]
+            
             # Route to appropriate service
             if event_type == "mortality":
                 self.mortality_service.create_event(event_data)

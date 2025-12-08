@@ -11,6 +11,7 @@ from app.db.models.alert import Alert
 from app.db.models.finance import Expenditure, Sale
 from app.db.models.inventory import InventoryItem
 from app.db.models.biosecurity import BiosecurityCheck
+from app.db.models.people import Supplier, Customer, Employee
 
 __all__ = [
     "User",
@@ -24,5 +25,8 @@ __all__ = [
     "Expenditure",
     "Sale",
     "InventoryItem",
-    "BiosecurityCheck"
+    "BiosecurityCheck",
+    "Supplier",
+    "Customer",
+    "Employee"
 ]

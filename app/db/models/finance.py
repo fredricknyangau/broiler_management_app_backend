@@ -28,6 +28,10 @@ class Expenditure(Base, UUIDMixin, TimestampMixin):
         CheckConstraint("amount >= 0", name="positive_amount"),
     )
 
+    # New Foreign Key
+    supplier_id = Column(UUID(as_uuid=True), ForeignKey("suppliers.id", ondelete="SET NULL"), nullable=True, index=True)
+    supplier = relationship("Supplier", backref="expenditures")
+
 class Sale(Base, UUIDMixin, TimestampMixin):
     """
     Records a sale of birds (revenue).
@@ -45,6 +49,10 @@ class Sale(Base, UUIDMixin, TimestampMixin):
     notes = Column(Text, nullable=True)
     mpesa_transaction_id = Column(String(50), nullable=True)
     average_weight_grams = Column(DECIMAL(10, 2), nullable=True, doc="Avg weight of birds sold")
+    
+    # New Foreign Key
+    customer_id = Column(UUID(as_uuid=True), ForeignKey("customers.id", ondelete="SET NULL"), nullable=True, index=True)
+    customer = relationship("Customer", backref="sales")
 
     # Relationships
     flock = relationship("Flock", backref="sales")

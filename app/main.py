@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from app.config import settings
-from app.api.v1 import auth, flocks, daily_checks, finance, inventory, biosecurity, alerts, events, health, market, admin
+from app.api.v1 import auth, flocks, daily_checks, finance, inventory, biosecurity, alerts, events, health, market, admin, data, people, analytics
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -20,6 +21,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 # Include routers
 app.include_router(auth.router, prefix=f"{settings.API_V1_PREFIX}/auth", tags=["Authentication"])
 app.include_router(flocks.router, prefix=f"{settings.API_V1_PREFIX}/flocks", tags=["Flocks"])
@@ -32,6 +35,9 @@ app.include_router(events.router, prefix=f"{settings.API_V1_PREFIX}/events", tag
 app.include_router(health.router, prefix=f"{settings.API_V1_PREFIX}/health", tags=["Health"])
 app.include_router(market.router, prefix=f"{settings.API_V1_PREFIX}/market", tags=["Market"])
 app.include_router(admin.router, prefix=f"{settings.API_V1_PREFIX}/admin", tags=["Admin"])
+app.include_router(data.router, prefix=f"{settings.API_V1_PREFIX}/data", tags=["Data Sync"])
+app.include_router(people.router, prefix=f"{settings.API_V1_PREFIX}/people", tags=["People"])
+app.include_router(analytics.router, prefix=f"{settings.API_V1_PREFIX}/analytics", tags=["Analytics"])
 
 @app.get("/")
 async def root():

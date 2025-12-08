@@ -71,3 +71,29 @@ class VaccinationService(BaseEventService[VaccinationEvent]):
             )
         ).count()
         return count > 0
+
+    def generate_schedule(self, flock_id: UUID, start_date: date) -> List[VaccinationEvent]:
+        """Generate standard vaccination schedule for a new flock"""
+        from app.core.vaccination_schedule import STANDARD_SCHEDULE
+        from uuid import uuid4
+        
+        events = []
+        for item in STANDARD_SCHEDULE:
+            due_date = start_date + timedelta(days=item["day"])
+            
+            # Create event record (planned)
+            event = VaccinationEvent(
+                event_id=uuid4(),
+                flock_id=flock_id,
+                event_date=due_date, # For planned events, we use due date as event date until completed
+                vaccine_name=item["vaccine_name"],
+                disease_target=item["disease_target"],
+                administration_method=item["method"],
+                next_due_date=due_date,
+                notes=item["notes"]
+            )
+            self.db.add(event)
+            events.append(event)
+            
+        self.db.commit()
+        return events

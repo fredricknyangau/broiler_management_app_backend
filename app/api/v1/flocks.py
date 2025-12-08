@@ -1,12 +1,14 @@
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 from app.api.deps import get_db, get_current_user
 from app.db.models.flock import Flock
 from app.db.models.user import User
-from app.schemas.flock import FlockCreate, FlockUpdate, FlockResponse
+from app.schemas.flock import FlockCreate, FlockResponse, FlockUpdate
+from app.services.vaccination_service import VaccinationService
 
 router = APIRouter()
 
@@ -30,6 +32,11 @@ def create_flock(
     db.add(flock)
     db.commit()
     db.refresh(flock)
+    
+    # Auto-generate vaccination schedule
+    vaccination_service = VaccinationService(db)
+    vaccination_service.generate_schedule(flock.id, flock.commencement_date)
+
     return flock
 
 @router.get("/", response_model=List[FlockResponse])
