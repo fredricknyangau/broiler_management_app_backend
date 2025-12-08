@@ -2,14 +2,12 @@ services:
   # Python Backend Service
   - type: web
     name: broiler-farm-backend
-    env: python
-    region: oregon # or your preferred region
+    env: docker
+    region: oregon # User preference preserved
     plan: free
-    buildCommand: "./scripts/build.sh" 
-    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    dockerContext: .
+    dockerfilePath: Dockerfile
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.12.0
       - key: DATABASE_URL
         fromDatabase:
           name: broiler-farm-db
