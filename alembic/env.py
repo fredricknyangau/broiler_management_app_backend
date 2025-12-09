@@ -15,6 +15,8 @@ from app.db.models.events import MortalityEvent, FeedConsumptionEvent, Vaccinati
 from app.db.models.alert import Alert
 from app.db.models.health import VetConsultation
 from app.db.models.market import MarketPrice
+from app.db.models.subscription import Subscription
+from app.db.models.people import Employee, Supplier, Customer
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

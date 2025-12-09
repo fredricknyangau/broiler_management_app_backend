@@ -2,41 +2,23 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from app.config import settings
-from app.api.v1 import auth, flocks, daily_checks, finance, inventory, biosecurity, alerts, events, health, market, admin, data, people, analytics
+from app.api.v1 import auth, flocks, daily_checks, finance, inventory, biosecurity, alerts, events, health, market, admin, data, people, analytics, billing
 
-
-import os
-import logging
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title=settings.APP_NAME,
-    description="Backend API for managing broiler farms in Kenya",
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc"
+    openapi_url=f"{settings.API_V1_PREFIX}/openapi.json"
 )
 
-@app.on_event("startup")
-async def startup_event():
-    logger.info("Starting up...")
-    logger.info(f"Configuration REDIS_URL: {settings.REDIS_URL}")
-    logger.info(f"Environment REDIS_URL: {os.environ.get('REDIS_URL')}")
-    # Log all env vars to see what's available (masked for security if needed, but for now just dumping keys)
-    logger.info(f"Available Environment Variables: {list(os.environ.keys())}")
-
-
-# CORS configuration
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.BACKEND_CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Set all CORS enabled origins
+if settings.BACKEND_CORS_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
@@ -55,6 +37,7 @@ app.include_router(admin.router, prefix=f"{settings.API_V1_PREFIX}/admin", tags=
 app.include_router(data.router, prefix=f"{settings.API_V1_PREFIX}/data", tags=["Data Sync"])
 app.include_router(people.router, prefix=f"{settings.API_V1_PREFIX}/people", tags=["People"])
 app.include_router(analytics.router, prefix=f"{settings.API_V1_PREFIX}/analytics", tags=["Analytics"])
+app.include_router(billing.router, prefix=f"{settings.API_V1_PREFIX}/billing", tags=["Billing"])
 
 @app.get("/")
 async def root():

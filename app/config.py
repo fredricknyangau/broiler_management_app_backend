@@ -24,6 +24,13 @@ class Settings(BaseSettings):
     SMS_PROVIDER_API_KEY: Optional[str] = None
     EMAIL_API_KEY: Optional[str] = None
     PUSH_NOTIFICATION_KEY: Optional[str] = None
+
+    # M-Pesa
+    MPESA_CONSUMER_KEY: str = "place_holder"
+    MPESA_CONSUMER_SECRET: str = "place_holder"
+    MPESA_PASSKEY: str = "place_holder"
+    MPESA_SHORTCODE: str = "174379" # Default test shortcode
+    MPESA_CALLBACK_URL: str = "https://your-domain.com/api/v1/billing/mpesa/callback" 
     
     class Config:
         env_file = ".env"

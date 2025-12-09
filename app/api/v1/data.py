@@ -103,9 +103,11 @@ def sync_data(
     # Market prices (last 90 days, global)
     ninety_days_ago = datetime.utcnow().date() - timedelta(days=90)
     market_prices = db.query(MarketPrice).filter(MarketPrice.price_date >= ninety_days_ago).all()
+    # market_prices = []
     
     # 6. Alerts
     alerts = db.query(Alert).filter(Alert.flock_id.in_(active_flock_ids)).all()
+    # alerts = []
     
     return {
         "user": current_user,

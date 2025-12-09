@@ -9,6 +9,7 @@ from app.db.models.flock import Flock
 from app.db.models.user import User
 from app.schemas.flock import FlockCreate, FlockResponse, FlockUpdate
 from app.services.vaccination_service import VaccinationService
+from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType
 
 router = APIRouter()
 
@@ -29,13 +30,35 @@ def create_flock(
         **flock_in.model_dump(),
         farmer_id=current_user.id
     )
+
+    # Enforce Plan Limits
+    # 1. Get current active subscription
+    sub = db.query(Subscription).filter(
+        Subscription.user_id == current_user.id,
+        Subscription.status == SubscriptionStatus.ACTIVE
+    ).order_by(Subscription.created_at.desc()).first()
+
+    current_plan = sub.plan_type if sub else PlanType.STARTER
+
+    # 2. Check limits if on STARTER
+    if current_plan == PlanType.STARTER:
+        active_flocks_count = db.query(Flock).filter(
+            Flock.farmer_id == current_user.id,
+            Flock.status == 'active'
+        ).count()
+        
+        if active_flocks_count >= 2:
+            raise HTTPException(
+                status_code=403, 
+                detail="Starter plan is limited to 2 active batches. Please upgrade to create more."
+            )
     db.add(flock)
     db.commit()
     db.refresh(flock)
     
     # Auto-generate vaccination schedule
     vaccination_service = VaccinationService(db)
-    vaccination_service.generate_schedule(flock.id, flock.commencement_date)
+    vaccination_service.generate_schedule(flock.id, flock.start_date)
 
     return flock
 

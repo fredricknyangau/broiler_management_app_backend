@@ -58,6 +58,29 @@ def update_inventory_item(
     db.add(item)
     db.commit()
     db.refresh(item)
+    
+    # Check for Low Stock Alert
+    if item.quantity <= item.minimum_stock:
+        from app.services.alert_service import AlertService
+        from app.db.models.flock import Flock
+        
+        # Find an active flock to attach alert to (Alerts currently require a flock_id)
+        # TODO: Refactor Alert model to make flock_id optional for system-wide alerts
+        active_flock = db.query(Flock).filter(
+            Flock.farmer_id == current_user.id, 
+            Flock.status == 'active'
+        ).first()
+        
+        if active_flock:
+            service = AlertService(db)
+            service.create_alert(
+                flock_id=active_flock.id,
+                title="Low Inventory Stock",
+                message=f"Stock for '{item.name}' is low ({item.quantity} {item.unit}). Reorder level: {item.minimum_stock}.",
+                severity="high",
+                alert_type="inventory"
+            )
+            
     return item
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
