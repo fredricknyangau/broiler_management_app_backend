@@ -150,6 +150,49 @@ async def update_expenditure(
         raise HTTPException(status_code=404, detail="Expenditure not found")
     
     update_data = item_in.model_dump(exclude_unset=True)
+    
+    # Handle Inventory Linkage during Update
+    if item_in.create_inventory_item and item_in.new_inventory_name:
+         # Create new inventory item
+        new_item = InventoryItem(
+            farmer_id=current_user.id,
+            name=item_in.new_inventory_name,
+            category='other', 
+            quantity=item_in.quantity or 0,
+            unit=item_in.new_inventory_unit or item_in.unit or 'units',
+            cost_per_unit=item_in.amount / (item_in.quantity or 1) if item_in.quantity else 0
+        )
+        if item_in.category in ['feed', 'medicine', 'equipment']:
+            new_item.category = item_in.category
+            
+        db.add(new_item)
+        await db.flush()
+        
+        item.inventory_item_id = new_item.id
+        
+        # Log History
+        if new_item.quantity > 0:
+            history = InventoryHistory(
+                inventory_item_id=new_item.id,
+                user_id=current_user.id,
+                date=item_in.date or item.date,
+                action=InventoryAction.PURCHASE,
+                quantity_change=new_item.quantity,
+                notes=f"Created via Expense Update: {item_in.description or item.description}"
+            )
+            db.add(history)
+            
+    elif item_in.inventory_item_id:
+        # Link to existing (Update logic is complex: assuming we ADD to it?)
+        # For simplicity in update, we just link it. Stock adjustments on update are tricky 
+        # (need to reverse old, apply new). For now, let's just Set the link.
+        item.inventory_item_id = item_in.inventory_item_id
+
+    # Exclude special fields
+    update_data.pop('create_inventory_item', None)
+    update_data.pop('new_inventory_name', None)
+    update_data.pop('new_inventory_unit', None)
+
     for field, value in update_data.items():
         setattr(item, field, value)
     

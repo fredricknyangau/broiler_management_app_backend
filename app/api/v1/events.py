@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import List
+from datetime import date
+from typing import List, Optional
 from uuid import UUID
 
 from app.api.deps import get_db, get_current_user
@@ -49,13 +50,28 @@ async def read_mortality_events(
 @router.post("/mortality", response_model=MortalityEventResponse, status_code=status.HTTP_201_CREATED)
 async def create_mortality_event(
     event_in: MortalityEventCreate,
+    flock_id: UUID,  # Required query param
+    event_date: date = None, # Optional query param
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Create mortality event."""
-    # Note: Logic usually goes through DailyCheckService, but standalone endpoint is ok
-    event = MortalityEvent(**event_in.model_dump(exclude={"event_id"}), id=event_in.event_id)
-    # Ideally should verify flock ownership
+    # Verify flock ownership
+    stmt = select(Flock).filter(Flock.id == flock_id, Flock.farmer_id == current_user.id)
+    result = await db.execute(stmt)
+    flock = result.scalars().first()
+    if not flock:
+        raise HTTPException(status_code=404, detail="Flock not found")
+
+    if event_date is None:
+        event_date = date.today()
+
+    event = MortalityEvent(
+        **event_in.model_dump(exclude={"event_id"}), 
+        id=event_in.event_id,
+        flock_id=flock_id,
+        event_date=event_date
+    )
     db.add(event)
     await db.commit()
     await db.refresh(event)
@@ -126,6 +142,36 @@ async def read_feed_events(
     result = await db.execute(stmt.offset(skip).limit(limit))
     return result.scalars().all()
 
+@router.post("/feed", response_model=FeedConsumptionEventResponse, status_code=status.HTTP_201_CREATED)
+async def create_feed_event(
+    event_in: FeedConsumptionEventCreate,
+    flock_id: UUID,
+    event_date: date = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Create feed event."""
+    # Verify flock ownership
+    stmt = select(Flock).filter(Flock.id == flock_id, Flock.farmer_id == current_user.id)
+    result = await db.execute(stmt)
+    flock = result.scalars().first()
+    if not flock:
+        raise HTTPException(status_code=404, detail="Flock not found")
+
+    if event_date is None:
+        event_date = date.today()
+
+    event = FeedConsumptionEvent(
+        **event_in.model_dump(exclude={"event_id"}), 
+        id=event_in.event_id,
+        flock_id=flock_id,
+        event_date=event_date
+    )
+    db.add(event)
+    await db.commit()
+    await db.refresh(event)
+    return event
+
 @router.put("/feed/{event_id}", response_model=FeedConsumptionEventResponse)
 async def update_feed_event(
     event_id: UUID,
@@ -191,6 +237,36 @@ async def read_vaccination_events(
     result = await db.execute(stmt.offset(skip).limit(limit))
     return result.scalars().all()
 
+@router.post("/vaccination", response_model=VaccinationEventResponse, status_code=status.HTTP_201_CREATED)
+async def create_vaccination_event(
+    event_in: VaccinationEventCreate,
+    flock_id: UUID,
+    event_date: date = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Create vaccination event."""
+    # Verify flock ownership
+    stmt = select(Flock).filter(Flock.id == flock_id, Flock.farmer_id == current_user.id)
+    result = await db.execute(stmt)
+    flock = result.scalars().first()
+    if not flock:
+        raise HTTPException(status_code=404, detail="Flock not found")
+
+    if event_date is None:
+        event_date = date.today()
+
+    event = VaccinationEvent(
+        **event_in.model_dump(exclude={"event_id"}), 
+        id=event_in.event_id,
+        flock_id=flock_id,
+        event_date=event_date
+    )
+    db.add(event)
+    await db.commit()
+    await db.refresh(event)
+    return event
+
 @router.put("/vaccination/{event_id}", response_model=VaccinationEventResponse)
 async def update_vaccination_event(
     event_id: UUID,
@@ -255,6 +331,36 @@ async def read_weight_events(
         stmt = stmt.filter(WeightMeasurementEvent.flock_id == flock_id)
     result = await db.execute(stmt.offset(skip).limit(limit))
     return result.scalars().all()
+
+@router.post("/weight", response_model=WeightMeasurementEventResponse, status_code=status.HTTP_201_CREATED)
+async def create_weight_event(
+    event_in: WeightMeasurementEventCreate,
+    flock_id: UUID,
+    event_date: date = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Create weight event."""
+    # Verify flock ownership
+    stmt = select(Flock).filter(Flock.id == flock_id, Flock.farmer_id == current_user.id)
+    result = await db.execute(stmt)
+    flock = result.scalars().first()
+    if not flock:
+        raise HTTPException(status_code=404, detail="Flock not found")
+
+    if event_date is None:
+        event_date = date.today()
+
+    event = WeightMeasurementEvent(
+        **event_in.model_dump(exclude={"event_id"}), 
+        id=event_in.event_id,
+        flock_id=flock_id,
+        measurement_date=event_date
+    )
+    db.add(event)
+    await db.commit()
+    await db.refresh(event)
+    return event
 
 @router.put("/weight/{event_id}", response_model=WeightMeasurementEventResponse)
 async def update_weight_event(
