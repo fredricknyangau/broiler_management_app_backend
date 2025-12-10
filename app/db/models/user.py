@@ -1,6 +1,13 @@
 from sqlalchemy import Column, String, Boolean, JSON
 from sqlalchemy.orm import relationship
 from app.db.base import Base, TimestampMixin, UUIDMixin
+import enum
+
+class UserRole(str, enum.Enum):
+    ADMIN = "ADMIN"
+    MANAGER = "MANAGER"
+    VIEWER = "VIEWER"
+    FARMER = "FARMER"
 
 
 class User(Base, UUIDMixin, TimestampMixin):
@@ -22,6 +29,7 @@ class User(Base, UUIDMixin, TimestampMixin):
 
     # Relationships
     flocks = relationship("Flock", back_populates="farmer", cascade="all, delete-orphan")
+    role = Column(String(50), default="FARMER", nullable=False, server_default="FARMER", doc="User's role (ADMIN, MANAGER, VIEWER, FARMER)")
 
     def __repr__(self):
-        return f"<User(email='{self.email}', name='{self.full_name}')>"
+        return f"<User(email='{self.email}', name='{self.full_name}', role='{self.role}')>"

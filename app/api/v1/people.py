@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List, Any
 from uuid import UUID
 
@@ -12,8 +13,8 @@ router = APIRouter()
 # --- Suppliers ---
 
 @router.get("/suppliers", response_model=List[schemas.Supplier])
-def read_suppliers(
-    db: Session = Depends(deps.get_db),
+async def read_suppliers(
+    db: AsyncSession = Depends(deps.get_db),
     current_user = Depends(deps.get_current_user),
     skip: int = 0,
     limit: int = 100,
@@ -21,13 +22,18 @@ def read_suppliers(
     """
     Retrieve suppliers.
     """
-    suppliers = db.query(Supplier).filter(Supplier.user_id == current_user.id).offset(skip).limit(limit).all()
-    return suppliers
+    result = await db.execute(
+        select(Supplier)
+        .filter(Supplier.user_id == current_user.id)
+        .offset(skip)
+        .limit(limit)
+    )
+    return result.scalars().all()
 
 @router.post("/suppliers", response_model=schemas.Supplier)
-def create_supplier(
+async def create_supplier(
     *,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_db),
     supplier_in: schemas.SupplierCreate,
     current_user = Depends(deps.get_current_user),
 ) -> Any:
@@ -39,14 +45,14 @@ def create_supplier(
         user_id=current_user.id
     )
     db.add(supplier)
-    db.commit()
-    db.refresh(supplier)
+    await db.commit()
+    await db.refresh(supplier)
     return supplier
 
 @router.put("/suppliers/{supplier_id}", response_model=schemas.Supplier)
-def update_supplier(
+async def update_supplier(
     *,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_db),
     supplier_id: UUID,
     supplier_in: schemas.SupplierUpdate,
     current_user = Depends(deps.get_current_user),
@@ -54,7 +60,8 @@ def update_supplier(
     """
     Update a supplier.
     """
-    supplier = db.query(Supplier).filter(Supplier.id == supplier_id, Supplier.user_id == current_user.id).first()
+    result = await db.execute(select(Supplier).filter(Supplier.id == supplier_id, Supplier.user_id == current_user.id))
+    supplier = result.scalars().first()
     if not supplier:
         raise HTTPException(status_code=404, detail="Supplier not found")
     
@@ -62,34 +69,35 @@ def update_supplier(
     for field, value in update_data.items():
         setattr(supplier, field, value)
         
-    db.add(supplier)
-    db.commit()
-    db.refresh(supplier)
+    # db.add(supplier)
+    await db.commit()
+    await db.refresh(supplier)
     return supplier
 
 @router.delete("/suppliers/{supplier_id}", response_model=schemas.Supplier)
-def delete_supplier(
+async def delete_supplier(
     *,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_db),
     supplier_id: UUID,
     current_user = Depends(deps.get_current_user),
 ) -> Any:
     """
     Delete a supplier.
     """
-    supplier = db.query(Supplier).filter(Supplier.id == supplier_id, Supplier.user_id == current_user.id).first()
+    result = await db.execute(select(Supplier).filter(Supplier.id == supplier_id, Supplier.user_id == current_user.id))
+    supplier = result.scalars().first()
     if not supplier:
         raise HTTPException(status_code=404, detail="Supplier not found")
     
-    db.delete(supplier)
-    db.commit()
+    await db.delete(supplier)
+    await db.commit()
     return supplier
 
 # --- Customers ---
 
 @router.get("/customers", response_model=List[schemas.Customer])
-def read_customers(
-    db: Session = Depends(deps.get_db),
+async def read_customers(
+    db: AsyncSession = Depends(deps.get_db),
     current_user = Depends(deps.get_current_user),
     skip: int = 0,
     limit: int = 100,
@@ -97,13 +105,18 @@ def read_customers(
     """
     Retrieve customers.
     """
-    customers = db.query(Customer).filter(Customer.user_id == current_user.id).offset(skip).limit(limit).all()
-    return customers
+    result = await db.execute(
+        select(Customer)
+        .filter(Customer.user_id == current_user.id)
+        .offset(skip)
+        .limit(limit)
+    )
+    return result.scalars().all()
 
 @router.post("/customers", response_model=schemas.Customer)
-def create_customer(
+async def create_customer(
     *,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_db),
     customer_in: schemas.CustomerCreate,
     current_user = Depends(deps.get_current_user),
 ) -> Any:
@@ -115,14 +128,14 @@ def create_customer(
         user_id=current_user.id
     )
     db.add(customer)
-    db.commit()
-    db.refresh(customer)
+    await db.commit()
+    await db.refresh(customer)
     return customer
 
 @router.put("/customers/{customer_id}", response_model=schemas.Customer)
-def update_customer(
+async def update_customer(
     *,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_db),
     customer_id: UUID,
     customer_in: schemas.CustomerUpdate,
     current_user = Depends(deps.get_current_user),
@@ -130,7 +143,8 @@ def update_customer(
     """
     Update a customer.
     """
-    customer = db.query(Customer).filter(Customer.id == customer_id, Customer.user_id == current_user.id).first()
+    result = await db.execute(select(Customer).filter(Customer.id == customer_id, Customer.user_id == current_user.id))
+    customer = result.scalars().first()
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
     
@@ -138,35 +152,36 @@ def update_customer(
     for field, value in update_data.items():
         setattr(customer, field, value)
         
-    db.add(customer)
-    db.commit()
-    db.refresh(customer)
+    # db.add(customer)
+    await db.commit()
+    await db.refresh(customer)
     return customer
 
 @router.delete("/customers/{customer_id}", response_model=schemas.Customer)
-def delete_customer(
+async def delete_customer(
     *,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_db),
     customer_id: UUID,
     current_user = Depends(deps.get_current_user),
 ) -> Any:
     """
     Delete a customer.
     """
-    customer = db.query(Customer).filter(Customer.id == customer_id, Customer.user_id == current_user.id).first()
+    result = await db.execute(select(Customer).filter(Customer.id == customer_id, Customer.user_id == current_user.id))
+    customer = result.scalars().first()
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
     
-    db.delete(customer)
-    db.commit()
+    await db.delete(customer)
+    await db.commit()
     return customer
 
 
 # --- Employees ---
 
 @router.get("/employees", response_model=List[schemas.Employee])
-def read_employees(
-    db: Session = Depends(deps.get_db),
+async def read_employees(
+    db: AsyncSession = Depends(deps.get_db),
     current_user = Depends(deps.get_current_user),
     skip: int = 0,
     limit: int = 100,
@@ -174,13 +189,18 @@ def read_employees(
     """
     Retrieve employees.
     """
-    employees = db.query(Employee).filter(Employee.user_id == current_user.id).offset(skip).limit(limit).all()
-    return employees
+    result = await db.execute(
+        select(Employee)
+        .filter(Employee.user_id == current_user.id)
+        .offset(skip)
+        .limit(limit)
+    )
+    return result.scalars().all()
 
 @router.post("/employees", response_model=schemas.Employee)
-def create_employee(
+async def create_employee(
     *,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_db),
     employee_in: schemas.EmployeeCreate,
     current_user = Depends(deps.get_current_user),
 ) -> Any:
@@ -192,14 +212,14 @@ def create_employee(
         user_id=current_user.id
     )
     db.add(employee)
-    db.commit()
-    db.refresh(employee)
+    await db.commit()
+    await db.refresh(employee)
     return employee
 
 @router.put("/employees/{employee_id}", response_model=schemas.Employee)
-def update_employee(
+async def update_employee(
     *,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_db),
     employee_id: UUID,
     employee_in: schemas.EmployeeUpdate,
     current_user = Depends(deps.get_current_user),
@@ -207,7 +227,8 @@ def update_employee(
     """
     Update an employee.
     """
-    employee = db.query(Employee).filter(Employee.id == employee_id, Employee.user_id == current_user.id).first()
+    result = await db.execute(select(Employee).filter(Employee.id == employee_id, Employee.user_id == current_user.id))
+    employee = result.scalars().first()
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
     
@@ -215,25 +236,26 @@ def update_employee(
     for field, value in update_data.items():
         setattr(employee, field, value)
         
-    db.add(employee)
-    db.commit()
-    db.refresh(employee)
+    # db.add(employee)
+    await db.commit()
+    await db.refresh(employee)
     return employee
 
 @router.delete("/employees/{employee_id}", response_model=schemas.Employee)
-def delete_employee(
+async def delete_employee(
     *,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_db),
     employee_id: UUID,
     current_user = Depends(deps.get_current_user),
 ) -> Any:
     """
     Delete an employee.
     """
-    employee = db.query(Employee).filter(Employee.id == employee_id, Employee.user_id == current_user.id).first()
+    result = await db.execute(select(Employee).filter(Employee.id == employee_id, Employee.user_id == current_user.id))
+    employee = result.scalars().first()
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
     
-    db.delete(employee)
-    db.commit()
+    await db.delete(employee)
+    await db.commit()
     return employee

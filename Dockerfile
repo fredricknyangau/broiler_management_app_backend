@@ -1,36 +1,57 @@
-# Python 3.12 slim image
-FROM python:3.12-slim
+# Multi-stage build for smaller and more secure image
 
-# Set working directory
+# Stage 1: Builder
+FROM python:3.12-slim as builder
+
 WORKDIR /app
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app
-
-# Install system dependencies (including gcc for building some python packages if needed)
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends gcc libpq-dev \
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy poetry files
-COPY pyproject.toml poetry.lock ./
+# Install poetry
+RUN pip install poetry
 
-# Install poetry and dependencies
-# We install poetry, then export requirements.txt to install via pip for slimmer image
-# Or just use pip if poetry is too heavy, but let's stick to standard practice
-RUN pip install poetry \
-    && poetry config virtualenvs.create false \
+# Copy and install dependencies
+COPY pyproject.toml poetry.lock ./
+RUN poetry config virtualenvs.create false \
     && poetry install --no-root --only main --no-interaction --no-ansi
+
+# Stage 2: Runtime
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Create a non-root user
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser
+
+# Install run-time dependencies (libpq for asyncpg)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy installed packages from builder
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code
 COPY . .
 
-# Expose port (Render sets $PORT env var, but good to document)
+# Change ownership to non-root user
+RUN chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
 EXPOSE 8000
 
+# Make start script executable (if not already)
+RUN chmod +x start.sh
+
 # Command to run the application
-# Use the $PORT environment variable supplied by Render
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["./start.sh"]

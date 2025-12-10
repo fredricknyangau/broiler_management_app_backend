@@ -36,7 +36,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: Dockerfile
     container_name: broiler_api
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:

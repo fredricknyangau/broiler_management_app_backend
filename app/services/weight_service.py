@@ -1,8 +1,8 @@
 from uuid import UUID
 from datetime import date
 from typing import Optional, List
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select
 from app.db.models.events import WeightMeasurementEvent
 from app.services.base_event_service import BaseEventService
 
@@ -10,24 +10,30 @@ from app.services.base_event_service import BaseEventService
 class WeightMeasurementService(BaseEventService[WeightMeasurementEvent]):
     """Service for weight measurement operations"""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         super().__init__(WeightMeasurementEvent, db)
 
-    def get_latest_weight(self, flock_id: UUID) -> Optional[WeightMeasurementEvent]:
+    async def get_latest_weight(self, flock_id: UUID) -> Optional[WeightMeasurementEvent]:
         """Get most recent weight measurement"""
-        return self.db.query(WeightMeasurementEvent).filter(
-            WeightMeasurementEvent.flock_id == flock_id
-        ).order_by(
-            WeightMeasurementEvent.measurement_date.desc()
-        ).first()
+        result = await self.db.execute(
+            select(WeightMeasurementEvent).filter(
+                WeightMeasurementEvent.flock_id == flock_id
+            ).order_by(
+                WeightMeasurementEvent.measurement_date.desc()
+            )
+        )
+        return result.scalars().first()
 
-    def get_average_weight_trend(self, flock_id: UUID) -> List[dict]:
+    async def get_average_weight_trend(self, flock_id: UUID) -> List[dict]:
         """Get weight progression over time"""
-        measurements = self.db.query(WeightMeasurementEvent).filter(
-            WeightMeasurementEvent.flock_id == flock_id
-        ).order_by(
-            WeightMeasurementEvent.measurement_date
-        ).all()
+        result = await self.db.execute(
+            select(WeightMeasurementEvent).filter(
+                WeightMeasurementEvent.flock_id == flock_id
+            ).order_by(
+                WeightMeasurementEvent.measurement_date
+            )
+        )
+        measurements = result.scalars().all()
         
         return [
             {
@@ -38,22 +44,28 @@ class WeightMeasurementService(BaseEventService[WeightMeasurementEvent]):
             for m in measurements
         ]
 
-    def calculate_growth_rate(
+    async def calculate_growth_rate(
         self, 
         flock_id: UUID, 
         start_date: date,
         end_date: date
     ) -> Optional[float]:
         """Calculate average daily weight gain between two dates"""
-        start_measurement = self.db.query(WeightMeasurementEvent).filter(
+        stmt_start = select(WeightMeasurementEvent).filter(
             WeightMeasurementEvent.flock_id == flock_id,
             WeightMeasurementEvent.measurement_date >= start_date
-        ).order_by(WeightMeasurementEvent.measurement_date).first()
+        ).order_by(WeightMeasurementEvent.measurement_date)
         
-        end_measurement = self.db.query(WeightMeasurementEvent).filter(
+        result_start = await self.db.execute(stmt_start)
+        start_measurement = result_start.scalars().first()
+        
+        stmt_end = select(WeightMeasurementEvent).filter(
             WeightMeasurementEvent.flock_id == flock_id,
             WeightMeasurementEvent.measurement_date <= end_date
-        ).order_by(WeightMeasurementEvent.measurement_date.desc()).first()
+        ).order_by(WeightMeasurementEvent.measurement_date.desc())
+        
+        result_end = await self.db.execute(stmt_end)
+        end_measurement = result_end.scalars().first()
         
         if not start_measurement or not end_measurement:
             return None
@@ -66,7 +78,7 @@ class WeightMeasurementService(BaseEventService[WeightMeasurementEvent]):
         
         return round(weight_diff / days_diff, 2)
 
-    def is_growth_on_track(
+    async def is_growth_on_track(
         self, 
         flock_id: UUID, 
         days_old: int,
@@ -74,7 +86,7 @@ class WeightMeasurementService(BaseEventService[WeightMeasurementEvent]):
         tolerance_percent: float = 10.0
     ) -> Optional[bool]:
         """Check if current weight is within expected range"""
-        latest = self.get_latest_weight(flock_id)
+        latest = await self.get_latest_weight(flock_id)
         if not latest:
             return None
         

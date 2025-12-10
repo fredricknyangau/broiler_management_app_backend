@@ -11,6 +11,7 @@ class UserBase(BaseModel):
     location: Optional[str] = None
     is_active: Optional[bool] = True
     is_superuser: bool = False
+    role: Optional[str] = "FARMER"
     preferences: Optional[Dict[str, Any]] = {}
 
 
@@ -30,6 +31,7 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     phone_number: Optional[str] = None
     location: Optional[str] = None
+    role: Optional[str] = None
     preferences: Optional[Dict[str, Any]] = None
 
 
@@ -38,6 +40,7 @@ class UserResponse(UserBase):
     id: UUID4
     is_active: bool
     is_superuser: bool
+    role: str
     created_at: datetime
     
     class Config:

@@ -16,6 +16,13 @@ class ExpenditureBase(BaseModel):
 class ExpenditureCreate(ExpenditureBase):
     """Schema for creating a new expenditure."""
     flock_id: Optional[UUID4] = None
+    inventory_item_id: Optional[UUID4] = None
+    supplier_id: Optional[UUID4] = None
+    
+    # Optional: Create new inventory item on the fly
+    create_inventory_item: bool = False
+    new_inventory_name: Optional[str] = None
+    new_inventory_unit: Optional[str] = None
 
 class ExpenditureUpdate(BaseModel):
     """Schema for updating an expenditure."""
@@ -32,6 +39,8 @@ class ExpenditureResponse(ExpenditureBase):
     id: UUID4
     flock_id: Optional[UUID4]
     farmer_id: UUID4
+    inventory_item_id: Optional[UUID4]
+    supplier_id: Optional[UUID4]
     
     class Config:
         from_attributes = True

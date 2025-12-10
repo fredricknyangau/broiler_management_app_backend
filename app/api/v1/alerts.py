@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List
 from uuid import UUID
 from datetime import datetime
@@ -7,17 +8,18 @@ from datetime import datetime
 from app.api.deps import get_db, get_current_user
 from app.db.models.alert import Alert
 from app.db.models.user import User
+from app.db.models.flock import Flock
 from app.schemas.alert import AlertResponse, AlertUpdate
 
 router = APIRouter()
 
 @router.get("/", response_model=List[AlertResponse])
-def read_alerts(
+async def read_alerts(
     skip: int = 0,
     limit: int = 100,
     status: str = None,
     flock_id: UUID = None,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -26,20 +28,21 @@ def read_alerts(
     - **status**: Filter by status (active, acknowledged, resolved)
     - **flock_id**: Filter by specific flock
     """
-    query = db.query(Alert).join(Alert.flock).filter(Alert.flock.has(farmer_id=current_user.id))
+    stmt = select(Alert).join(Flock).filter(Flock.farmer_id == current_user.id)
     
     if status:
-        query = query.filter(Alert.status == status)
+        stmt = stmt.filter(Alert.status == status)
     if flock_id:
-        query = query.filter(Alert.flock_id == flock_id)
+        stmt = stmt.filter(Alert.flock_id == flock_id)
         
-    return query.order_by(Alert.triggered_at.desc()).offset(skip).limit(limit).all()
+    result = await db.execute(stmt.order_by(Alert.triggered_at.desc()).offset(skip).limit(limit))
+    return result.scalars().all()
 
 @router.put("/{alert_id}", response_model=AlertResponse)
-def update_alert(
+async def update_alert(
     alert_id: UUID,
     alert_update: AlertUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -47,10 +50,12 @@ def update_alert(
     
     - Automatically sets `acknowledged_at` or `resolved_at` timestamps based on status change.
     """
-    alert = db.query(Alert).join(Alert.flock).filter(
+    stmt = select(Alert).join(Flock).filter(
         Alert.id == alert_id,
-        Alert.flock.has(farmer_id=current_user.id)
-    ).first()
+        Flock.farmer_id == current_user.id
+    )
+    result = await db.execute(stmt)
+    alert = result.scalars().first()
     
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
@@ -65,7 +70,7 @@ def update_alert(
     for field, value in update_data.items():
         setattr(alert, field, value)
         
-    db.add(alert)
-    db.commit()
-    db.refresh(alert)
+    # db.add(alert)
+    await db.commit()
+    await db.refresh(alert)
     return alert

@@ -1,8 +1,8 @@
 from uuid import UUID
 from datetime import date, timedelta
 from typing import List, Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import and_, select
 from app.db.models.events import VaccinationEvent
 from app.services.base_event_service import BaseEventService
 
@@ -10,10 +10,10 @@ from app.services.base_event_service import BaseEventService
 class VaccinationService(BaseEventService[VaccinationEvent]):
     """Service for vaccination event operations"""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         super().__init__(VaccinationEvent, db)
 
-    def get_upcoming_vaccinations(
+    async def get_upcoming_vaccinations(
         self, 
         flock_id: UUID, 
         days_ahead: int = 7
@@ -22,57 +22,69 @@ class VaccinationService(BaseEventService[VaccinationEvent]):
         today = date.today()
         future_date = today + timedelta(days=days_ahead)
         
-        return self.db.query(VaccinationEvent).filter(
-            and_(
-                VaccinationEvent.flock_id == flock_id,
-                VaccinationEvent.next_due_date.isnot(None),
-                VaccinationEvent.next_due_date >= today,
-                VaccinationEvent.next_due_date <= future_date
-            )
-        ).order_by(VaccinationEvent.next_due_date).all()
+        result = await self.db.execute(
+            select(VaccinationEvent).filter(
+                and_(
+                    VaccinationEvent.flock_id == flock_id,
+                    VaccinationEvent.next_due_date.isnot(None),
+                    VaccinationEvent.next_due_date >= today,
+                    VaccinationEvent.next_due_date <= future_date
+                )
+            ).order_by(VaccinationEvent.next_due_date)
+        )
+        return result.scalars().all()
 
-    def get_overdue_vaccinations(self, flock_id: UUID) -> List[VaccinationEvent]:
+    async def get_overdue_vaccinations(self, flock_id: UUID) -> List[VaccinationEvent]:
         """Get vaccinations that are overdue"""
         today = date.today()
         
-        return self.db.query(VaccinationEvent).filter(
-            and_(
-                VaccinationEvent.flock_id == flock_id,
-                VaccinationEvent.next_due_date.isnot(None),
-                VaccinationEvent.next_due_date < today
-            )
-        ).order_by(VaccinationEvent.next_due_date).all()
+        result = await self.db.execute(
+            select(VaccinationEvent).filter(
+                and_(
+                    VaccinationEvent.flock_id == flock_id,
+                    VaccinationEvent.next_due_date.isnot(None),
+                    VaccinationEvent.next_due_date < today
+                )
+            ).order_by(VaccinationEvent.next_due_date)
+        )
+        return result.scalars().all()
 
-    def get_vaccination_history(
+    async def get_vaccination_history(
         self, 
         flock_id: UUID, 
         disease_target: Optional[str] = None
     ) -> List[VaccinationEvent]:
         """Get vaccination history, optionally filtered by disease"""
-        query = self.db.query(VaccinationEvent).filter(
+        stmt = select(VaccinationEvent).filter(
             VaccinationEvent.flock_id == flock_id
         )
         
         if disease_target:
-            query = query.filter(VaccinationEvent.disease_target == disease_target)
+            stmt = stmt.filter(VaccinationEvent.disease_target == disease_target)
         
-        return query.order_by(VaccinationEvent.event_date.desc()).all()
+        result = await self.db.execute(stmt.order_by(VaccinationEvent.event_date.desc()))
+        return result.scalars().all()
 
-    def has_received_vaccine(
+    async def has_received_vaccine(
         self, 
         flock_id: UUID, 
         vaccine_name: str
     ) -> bool:
         """Check if flock has received a specific vaccine"""
-        count = self.db.query(VaccinationEvent).filter(
-            and_(
-                VaccinationEvent.flock_id == flock_id,
-                VaccinationEvent.vaccine_name == vaccine_name
+        # Optimized count
+        from sqlalchemy import func
+        result = await self.db.execute(
+            select(func.count()).select_from(VaccinationEvent).filter(
+                and_(
+                    VaccinationEvent.flock_id == flock_id,
+                    VaccinationEvent.vaccine_name == vaccine_name
+                )
             )
-        ).count()
+        )
+        count = result.scalar_one()
         return count > 0
 
-    def generate_schedule(self, flock_id: UUID, start_date: date) -> List[VaccinationEvent]:
+    async def generate_schedule(self, flock_id: UUID, start_date: date) -> List[VaccinationEvent]:
         """Generate standard vaccination schedule for a new flock"""
         from app.core.vaccination_schedule import STANDARD_SCHEDULE
         from uuid import uuid4
@@ -95,5 +107,5 @@ class VaccinationService(BaseEventService[VaccinationEvent]):
             self.db.add(event)
             events.append(event)
             
-        self.db.commit()
+        await self.db.commit()
         return events

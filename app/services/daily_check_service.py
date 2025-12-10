@@ -1,7 +1,8 @@
 from typing import Dict, Any, List
 from uuid import UUID
 from datetime import date
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from app.db.models.daily_check import DailyCheck
 from app.db.models.events import (
@@ -19,14 +20,14 @@ from app.services.weight_service import WeightMeasurementService
 class DailyCheckService:
     """Service for processing daily checks and events"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
         self.mortality_service = MortalityEventService(db)
         self.feed_service = FeedConsumptionService(db)
         self.vaccination_service = VaccinationService(db)
         self.weight_service = WeightMeasurementService(db)
     
-    def process_daily_check(
+    async def process_daily_check(
         self,
         flock_id: UUID,
         check_date: date,
@@ -40,7 +41,7 @@ class DailyCheckService:
         3. Return summary
         """
         # Create or update daily check
-        check = self._upsert_daily_check(flock_id, check_date, observations)
+        check = await self._upsert_daily_check(flock_id, check_date, observations)
         
         # Process events
         events_processed = 0
@@ -67,16 +68,16 @@ class DailyCheckService:
             
             # Route to appropriate service
             if event_type == "mortality":
-                self.mortality_service.create_event(event_data)
+                await self.mortality_service.create_event(event_data)
                 events_processed += 1
             elif event_type == "feed_consumption":
-                self.feed_service.create_event(event_data)
+                await self.feed_service.create_event(event_data)
                 events_processed += 1
             elif event_type == "vaccination":
-                self.vaccination_service.create_event(event_data)
+                await self.vaccination_service.create_event(event_data)
                 events_processed += 1
             elif event_type == "weight_measurement":
-                self.weight_service.create_event(event_data)
+                await self.weight_service.create_event(event_data)
                 events_processed += 1
         
         return {
@@ -84,7 +85,7 @@ class DailyCheckService:
             "events_processed": events_processed
         }
     
-    def _upsert_daily_check(
+    async def _upsert_daily_check(
         self,
         flock_id: UUID,
         check_date: date,
@@ -92,18 +93,21 @@ class DailyCheckService:
     ) -> DailyCheck:
         """Create or update daily check (idempotent)"""
         # Check for existing
-        existing = self.db.query(DailyCheck).filter(
-            DailyCheck.flock_id == flock_id,
-            DailyCheck.check_date == check_date
-        ).first()
+        result = await self.db.execute(
+            select(DailyCheck).filter(
+                DailyCheck.flock_id == flock_id,
+                DailyCheck.check_date == check_date
+            )
+        )
+        existing = result.scalars().first()
         
         if existing:
             # Update existing
             for key, value in observations.items():
                 if value is not None:
                     setattr(existing, key, value)
-            self.db.commit()
-            self.db.refresh(existing)
+            await self.db.commit()
+            await self.db.refresh(existing)
             return existing
         
         # Create new
@@ -113,6 +117,6 @@ class DailyCheckService:
             **observations
         )
         self.db.add(check)
-        self.db.commit()
-        self.db.refresh(check)
+        await self.db.commit()
+        await self.db.refresh(check)
         return check

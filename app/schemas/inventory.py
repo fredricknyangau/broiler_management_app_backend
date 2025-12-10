@@ -36,3 +36,17 @@ class InventoryItemResponse(InventoryItemBase):
     
     class Config:
         from_attributes = True
+
+class InventoryHistoryResponse(BaseModel):
+    """Schema for inventory history log."""
+    id: UUID4
+    inventory_item_id: UUID4
+    user_id: UUID4
+    date: date
+    action: str
+    quantity_change: Decimal
+    notes: Optional[str] = None
+    created_at: date
+
+    class Config:
+        from_attributes = True

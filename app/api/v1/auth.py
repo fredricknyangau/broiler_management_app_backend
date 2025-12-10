@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import timedelta
 
 from app.api.deps import get_db, get_current_user
@@ -13,9 +13,9 @@ router = APIRouter()
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def register(
+async def register(
     user_data: UserCreate,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Register a new farmer account.
@@ -29,7 +29,7 @@ def register(
     service = UserService(db)
     
     try:
-        user = service.create_user(
+        user = await service.create_user(
             email=user_data.email,
             password=user_data.password,
             full_name=user_data.full_name,
@@ -45,9 +45,9 @@ def register(
 
 
 @router.post("/login", response_model=Token)
-def login(
+async def login(
     credentials: UserLogin,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Login to get access token.
@@ -63,7 +63,7 @@ def login(
     service = UserService(db)
     
     # Authenticate user
-    user = service.authenticate(credentials.email, credentials.password)
+    user = await service.authenticate(credentials.email, credentials.password)
     
     if not user:
         raise HTTPException(
@@ -86,7 +86,7 @@ def login(
 
 
 @router.get("/me", response_model=UserResponse)
-def get_current_user_profile(
+async def get_current_user_profile(
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -98,10 +98,10 @@ def get_current_user_profile(
 
 
 @router.put("/me", response_model=UserResponse)
-def update_profile(
+async def update_profile(
     user_update: UserUpdate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Update current user's profile.
@@ -113,7 +113,7 @@ def update_profile(
     # create dict from pydantic model, excluding None values
     update_data = user_update.model_dump(exclude_unset=True)
 
-    updated_user = service.update_user(
+    updated_user = await service.update_user(
         user_id=str(current_user.id),
         **update_data
     )

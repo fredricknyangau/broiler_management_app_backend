@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List, Optional, Any, Dict
 from pydantic import BaseModel
 from datetime import datetime, timedelta
@@ -68,46 +69,74 @@ class SyncResponse(BaseModel):
 
 
 @router.get("/sync", response_model=SyncResponse)
-def sync_data(
-    db: Session = Depends(get_db),
+async def sync_data(
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     Fetch all user data in a single request.
     Optimized for initial load and sync.
     """
+    from sqlalchemy import select
     
     # 1. Flocks
-    flocks = db.query(Flock).filter(Flock.farmer_id == current_user.id).all()
+    result = await db.execute(select(Flock).filter(Flock.farmer_id == current_user.id))
+    flocks = result.scalars().all()
+    
     # Optimization: Only fetch events for ACTIVE flocks to speed up sync
     # Historical data for closed batches won't be loaded in full detail on sync
     active_flock_ids = [f.id for f in flocks if f.status == 'active']
     
     # 2. Events (linked to ACTIVE flocks only)
-    mortality = db.query(MortalityEvent).filter(MortalityEvent.flock_id.in_(active_flock_ids)).all()
-    feed = db.query(FeedConsumptionEvent).filter(FeedConsumptionEvent.flock_id.in_(active_flock_ids)).all()
-    vaccination = db.query(VaccinationEvent).filter(VaccinationEvent.flock_id.in_(active_flock_ids)).all()
-    weight = db.query(WeightMeasurementEvent).filter(WeightMeasurementEvent.flock_id.in_(active_flock_ids)).all()
+    if active_flock_ids:
+        # Mortality
+        result = await db.execute(select(MortalityEvent).filter(MortalityEvent.flock_id.in_(active_flock_ids)))
+        mortality = result.scalars().all()
+        
+        # Feed
+        result = await db.execute(select(FeedConsumptionEvent).filter(FeedConsumptionEvent.flock_id.in_(active_flock_ids)))
+        feed = result.scalars().all()
+        
+        # Vaccination
+        result = await db.execute(select(VaccinationEvent).filter(VaccinationEvent.flock_id.in_(active_flock_ids)))
+        vaccination = result.scalars().all()
+        
+        # Weight
+        result = await db.execute(select(WeightMeasurementEvent).filter(WeightMeasurementEvent.flock_id.in_(active_flock_ids)))
+        weight = result.scalars().all()
+
+        # Alerts
+        result = await db.execute(select(Alert).filter(Alert.flock_id.in_(active_flock_ids)))
+        alerts = result.scalars().all()
+    else:
+        mortality = []
+        feed = []
+        vaccination = []
+        weight = []
+        alerts = []
     
     # 3. Finance
-    expenditures = db.query(Expenditure).filter(Expenditure.farmer_id == current_user.id).all()
-    sales = db.query(Sale).filter(Sale.farmer_id == current_user.id).all()
+    result = await db.execute(select(Expenditure).filter(Expenditure.farmer_id == current_user.id))
+    expenditures = result.scalars().all()
+    
+    result = await db.execute(select(Sale).filter(Sale.farmer_id == current_user.id))
+    sales = result.scalars().all()
     
     # 4. Inventory & Biosecurity
-    inventory = db.query(InventoryItem).filter(InventoryItem.farmer_id == current_user.id).all()
-    biosecurity = db.query(BiosecurityCheck).filter(BiosecurityCheck.farmer_id == current_user.id).all()
+    result = await db.execute(select(InventoryItem).filter(InventoryItem.farmer_id == current_user.id))
+    inventory = result.scalars().all()
+    
+    result = await db.execute(select(BiosecurityCheck).filter(BiosecurityCheck.farmer_id == current_user.id))
+    biosecurity = result.scalars().all()
     
     # 5. Health & Market
-    vet_consultations = db.query(VetConsultation).filter(VetConsultation.farmer_id == current_user.id).all()
+    result = await db.execute(select(VetConsultation).filter(VetConsultation.farmer_id == current_user.id))
+    vet_consultations = result.scalars().all()
     
     # Market prices (last 90 days, global)
     ninety_days_ago = datetime.utcnow().date() - timedelta(days=90)
-    market_prices = db.query(MarketPrice).filter(MarketPrice.price_date >= ninety_days_ago).all()
-    # market_prices = []
-    
-    # 6. Alerts
-    alerts = db.query(Alert).filter(Alert.flock_id.in_(active_flock_ids)).all()
-    # alerts = []
+    result = await db.execute(select(MarketPrice).filter(MarketPrice.price_date >= ninety_days_ago))
+    market_prices = result.scalars().all()
     
     return {
         "user": current_user,

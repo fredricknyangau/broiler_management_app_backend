@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List
 from uuid import UUID
 
@@ -11,9 +12,9 @@ from app.schemas.biosecurity import BiosecurityCheckCreate, BiosecurityCheckResp
 router = APIRouter()
 
 @router.post("/", response_model=BiosecurityCheckResponse, status_code=status.HTTP_201_CREATED)
-def create_biosecurity_check(
+async def create_biosecurity_check(
     check_in: BiosecurityCheckCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -21,33 +22,40 @@ def create_biosecurity_check(
     """
     check = BiosecurityCheck(**check_in.model_dump(), farmer_id=current_user.id)
     db.add(check)
-    db.commit()
-    db.refresh(check)
+    await db.commit()
+    await db.refresh(check)
     return check
 
 @router.get("/", response_model=List[BiosecurityCheckResponse])
-def read_biosecurity_checks(
+async def read_biosecurity_checks(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     List biosecurity checks.
     """
-    return db.query(BiosecurityCheck).filter(BiosecurityCheck.farmer_id == current_user.id).offset(skip).limit(limit).all()
+    result = await db.execute(
+        select(BiosecurityCheck)
+        .filter(BiosecurityCheck.farmer_id == current_user.id)
+        .offset(skip)
+        .limit(limit)
+    )
+    return result.scalars().all()
 
 @router.put("/{check_id}", response_model=BiosecurityCheckResponse)
-def update_biosecurity_check(
+async def update_biosecurity_check(
     check_id: UUID,
     check_in: BiosecurityCheckUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     Update a biosecurity record.
     """
-    check = db.query(BiosecurityCheck).filter(BiosecurityCheck.id == check_id, BiosecurityCheck.farmer_id == current_user.id).first()
+    result = await db.execute(select(BiosecurityCheck).filter(BiosecurityCheck.id == check_id, BiosecurityCheck.farmer_id == current_user.id))
+    check = result.scalars().first()
     if not check:
         raise HTTPException(status_code=404, detail="Biosecurity record not found")
     
@@ -55,24 +63,25 @@ def update_biosecurity_check(
     for field, value in update_data.items():
         setattr(check, field, value)
     
-    db.add(check)
-    db.commit()
-    db.refresh(check)
+    # db.add(check)
+    await db.commit()
+    await db.refresh(check)
     return check
 
 @router.delete("/{check_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_biosecurity_check(
+async def delete_biosecurity_check(
     check_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     Delete a biosecurity record.
     """
-    check = db.query(BiosecurityCheck).filter(BiosecurityCheck.id == check_id, BiosecurityCheck.farmer_id == current_user.id).first()
+    result = await db.execute(select(BiosecurityCheck).filter(BiosecurityCheck.id == check_id, BiosecurityCheck.farmer_id == current_user.id))
+    check = result.scalars().first()
     if not check:
         raise HTTPException(status_code=404, detail="Biosecurity record not found")
     
-    db.delete(check)
-    db.commit()
+    await db.delete(check)
+    await db.commit()
     return None

@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import Any
 import enum
 from datetime import datetime, timedelta
@@ -13,10 +14,10 @@ from app.services.mpesa_service import mpesa_service
 router = APIRouter()
 
 @router.post("/subscribe", response_model=SubscriptionResponse)
-def subscribe(
+async def subscribe(
     payload: SubscriptionCreate,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -40,7 +41,6 @@ def subscribe(
         phone = "254" + phone[1:]
 
     # 2. Create Pending Subscription Record
-    # Check if user already has an active one? For now let's just create new one
     subscription = Subscription(
         user_id=current_user.id,
         plan_type=payload.plan_type,
@@ -50,12 +50,12 @@ def subscribe(
         mpesa_reference=f"SUB-{current_user.id}-{int(datetime.now().timestamp())}"
     )
     db.add(subscription)
-    db.commit()
-    db.refresh(subscription)
+    await db.commit()
+    await db.refresh(subscription)
 
     # 3. Trigger M-Pesa STK Push
     try:
-        response = mpesa_service.initiate_stk_push(
+        response = await mpesa_service.initiate_stk_push(
             phone=phone,
             amount=amount,
             reference=subscription.mpesa_reference
@@ -64,11 +64,11 @@ def subscribe(
         checkout_request_id = response.get('CheckoutRequestID')
         if checkout_request_id:
             subscription.checkout_request_id = checkout_request_id
-            db.commit()
+            await db.commit()
             
     except Exception as e:
-        db.delete(subscription)
-        db.commit()
+        await db.delete(subscription)
+        await db.commit()
         error_msg = str(e)
         if "M-Pesa API Error" in error_msg:
             # Pass the upstream error message cleanly
@@ -81,7 +81,7 @@ def subscribe(
     return subscription
 
 @router.post("/mpesa/callback")
-async def mpesa_callback(request: Request, db: Session = Depends(get_db)):
+async def mpesa_callback(request: Request, db: AsyncSession = Depends(get_db)):
     """
     Receives callback from Safaricom.
     """
@@ -105,9 +105,10 @@ async def mpesa_callback(request: Request, db: Session = Depends(get_db)):
             return {"status": "ignored", "reason": "No CheckoutRequestID"}
 
         # Find subscription
-        subscription = db.query(Subscription).filter(
+        result = await db.execute(select(Subscription).filter(
             Subscription.checkout_request_id == checkout_request_id
-        ).first()
+        ))
+        subscription = result.scalars().first()
 
         if not subscription:
             print(f"Subscription not found for CheckoutRequestID: {checkout_request_id}")
@@ -134,7 +135,7 @@ async def mpesa_callback(request: Request, db: Session = Depends(get_db)):
             subscription.status = SubscriptionStatus.CANCELLED
             # Optionally store result_desc
 
-        db.commit()
+        await db.commit()
         return {"status": "processed", "result_code": result_code}
 
     except Exception as e:
@@ -143,18 +144,21 @@ async def mpesa_callback(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/my-subscription", response_model=SubscriptionResponse)
-def get_my_subscription(
-    db: Session = Depends(get_db),
+async def get_my_subscription(
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     Get the current active subscription for the user.
     """
     # Find the latest active subscription
-    sub = db.query(Subscription).filter(
-        Subscription.user_id == current_user.id,
-        Subscription.status == SubscriptionStatus.ACTIVE
-    ).order_by(Subscription.created_at.desc()).first()
+    result = await db.execute(
+        select(Subscription).filter(
+            Subscription.user_id == current_user.id,
+            Subscription.status == SubscriptionStatus.ACTIVE
+        ).order_by(Subscription.created_at.desc())
+    )
+    sub = result.scalars().first()
 
     if not sub:
         # Return a dummy starter plan if none found
@@ -170,14 +174,16 @@ def get_my_subscription(
     return sub
 
 @router.post("/simulate-callback")
-def simulate_callback(
+async def simulate_callback(
     mpesa_reference: str,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     DEV ONLY: Simulate a successful M-Pesa callback to activate a subscription.
     """
-    sub = db.query(Subscription).filter(Subscription.mpesa_reference == mpesa_reference).first()
+    result = await db.execute(select(Subscription).filter(Subscription.mpesa_reference == mpesa_reference))
+    sub = result.scalars().first()
+    
     if not sub:
         raise HTTPException(status_code=404, detail="Subscription not found")
     
@@ -185,8 +191,6 @@ def simulate_callback(
     sub.start_date = datetime.now()
     
     # Infer duration from amount
-    # 500 = Monthly, 5000 = Yearly (Professional)
-    # 10000 = Yearly (Enterprise placeholder)
     try:
         amt = float(sub.amount)
         if amt < 2000: # Threshold for monthly
@@ -197,5 +201,5 @@ def simulate_callback(
         # Fallback
         sub.end_date = datetime.now() + timedelta(days=30)
 
-    db.commit()
+    await db.commit()
     return {"status": "success", "message": "Subscription activated"}

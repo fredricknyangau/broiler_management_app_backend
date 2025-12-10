@@ -32,6 +32,10 @@ class Expenditure(Base, UUIDMixin, TimestampMixin):
     supplier_id = Column(UUID(as_uuid=True), ForeignKey("suppliers.id", ondelete="SET NULL"), nullable=True, index=True)
     supplier = relationship("Supplier", backref="expenditures")
 
+    # Link to Inventory
+    inventory_item_id = Column(UUID(as_uuid=True), ForeignKey("inventory_items.id", ondelete="SET NULL"), nullable=True, index=True)
+    inventory_item = relationship("InventoryItem", backref="expenditures")
+
 class Sale(Base, UUIDMixin, TimestampMixin):
     """
     Records a sale of birds (revenue).
