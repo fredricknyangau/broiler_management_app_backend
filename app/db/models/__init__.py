@@ -12,6 +12,8 @@ from app.db.models.finance import Expenditure, Sale
 from app.db.models.inventory import InventoryItem
 from app.db.models.biosecurity import BiosecurityCheck
 from app.db.models.people import Supplier, Customer, Employee
+from app.db.models.role import Role
+from app.db.models.config import SystemConfig
 
 __all__ = [
     "User",
@@ -28,5 +30,7 @@ __all__ = [
     "BiosecurityCheck",
     "Supplier",
     "Customer",
-    "Employee"
+    "Employee",
+    "Role",
+    "SystemConfig"
 ]

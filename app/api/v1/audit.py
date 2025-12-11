@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
+import csv
+import io
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
@@ -41,3 +43,33 @@ async def get_audit_logs(
         results.append(log_resp)
         
     return results
+
+@router.get("/export")
+async def export_audit_logs(
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """
+    Export all audit logs as CSV.
+    """
+    stmt = select(AuditLog).options(joinedload(AuditLog.user)).order_by(AuditLog.timestamp.desc())
+    result = await db.execute(stmt)
+    logs = result.scalars().all()
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Timestamp", "Action", "User Email", "Resource Type", "Resource ID", "IP Address", "Details"])
+    
+    for log in logs:
+        email = log.user.email if log.user else "Unknown"
+        writer.writerow([
+            log.timestamp,
+            log.action,
+            email,
+            log.resource_type,
+            log.resource_id,
+            log.ip_address,
+            log.details
+        ])
+        
+    return Response(content=output.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=audit_logs.csv"})

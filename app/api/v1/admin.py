@@ -14,7 +14,12 @@ from app.db.models.flock import Flock
 from app.schemas.user import UserResponse, UserUpdate
 from app.services.audit_service import log_action
 from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType
+from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType
+from app.db.models.role import Role
+from app.db.models.config import SystemConfig
 from app.schemas.billing import SubscriptionResponse
+from app.schemas.role import RoleCreate, RoleUpdate, RoleResponse
+from app.schemas.config import SystemConfigCreate, SystemConfigUpdate, SystemConfigResponse
 
 router = APIRouter()
 
@@ -249,3 +254,124 @@ async def cancel_subscription(
     await db.commit()
     
     return {"status": "success", "message": "Subscription cancelled"}
+
+
+# --- Role Management ---
+
+@router.get("/roles", response_model=List[RoleResponse])
+async def get_roles(
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """List all available roles."""
+    result = await db.execute(select(Role).offset(skip).limit(limit))
+    return result.scalars().all()
+
+@router.post("/roles", response_model=RoleResponse)
+async def create_role(
+    role_in: RoleCreate,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Create a new custom role."""
+    # Check if exists
+    existing = await db.execute(select(Role).filter(Role.name == role_in.name))
+    if existing.scalars().first():
+        raise HTTPException(status_code=400, detail="Role with this name already exists")
+    
+    role = Role(**role_in.model_dump())
+    db.add(role)
+    await db.commit()
+    await db.refresh(role)
+    
+    await log_action(db, "CREATE_ROLE", current_admin.id, "Role", str(role.id), role_in.model_dump())
+    return role
+
+@router.put("/roles/{role_id}", response_model=RoleResponse)
+async def update_role(
+    role_id: str,
+    role_in: RoleUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Update a role's permissions or description."""
+    result = await db.execute(select(Role).filter(Role.id == role_id))
+    role = result.scalars().first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+        
+    update_data = role_in.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(role, field, value)
+        
+    await db.commit()
+    await db.refresh(role)
+    
+    await log_action(db, "UPDATE_ROLE", current_admin.id, "Role", str(role.id), update_data)
+    return role
+
+@router.delete("/roles/{role_id}")
+async def delete_role(
+    role_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Delete a custom role."""
+    result = await db.execute(select(Role).filter(Role.id == role_id))
+    role = result.scalars().first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    
+    # Check if users are assigned to this role (basic check, can be improved)
+    # Since User.role is a string, we check that string
+    users_with_role = await db.execute(select(User).filter(User.role == role.name))
+    if users_with_role.scalars().first():
+        raise HTTPException(status_code=400, detail="Cannot delete role that is assigned to users")
+
+    await db.delete(role)
+    await db.commit()
+    
+    await log_action(db, "DELETE_ROLE", current_admin.id, "Role", str(role.id))
+    return {"status": "success", "message": "Role deleted"}
+
+
+# --- System Configuration ---
+
+@router.get("/config", response_model=List[SystemConfigResponse])
+async def get_system_config(
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Get all system configurations (Admin only)."""
+    result = await db.execute(select(SystemConfig))
+    return result.scalars().all()
+
+@router.post("/config", response_model=SystemConfigResponse)
+async def create_or_update_config(
+    config_in: SystemConfigCreate,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Create or update a configuration key."""
+    result = await db.execute(select(SystemConfig).filter(SystemConfig.key == config_in.key))
+    existing = result.scalars().first()
+    
+    if existing:
+        # Update
+        for field, value in config_in.model_dump(exclude={"key"}).items(): # key is immutable-ish for update content
+            setattr(existing, field, value)
+        db_obj = existing
+        action = "UPDATE_CONFIG"
+    else:
+        # Create
+        db_obj = SystemConfig(**config_in.model_dump())
+        db.add(db_obj)
+        action = "CREATE_CONFIG"
+        
+    await db.commit()
+    await db.refresh(db_obj)
+    
+    await log_action(db, action, current_admin.id, "SystemConfig", str(db_obj.id), {"key": config_in.key})
+    return db_obj
