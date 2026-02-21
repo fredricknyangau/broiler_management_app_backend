@@ -1,0 +1,14 @@
+steps:
+  - name: deploy
+    image: appleboy/drone-ssh
+    settings:
+      host: 192.168.100.199
+      username: fred
+      port: 2222
+      key:
+        from_secret: SSH_PRIVATE_KEY
+      script:
+        - cd /home/fred/apps/broiler_management_app_backend
+        - git pull origin main
+        - docker compose down
+        - docker compose up -d --build
