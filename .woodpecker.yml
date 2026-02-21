@@ -1,6 +1,11 @@
+when:
+  - event: [push, manual]
+
 steps:
   - name: deploy
     image: appleboy/drone-ssh
+    when:
+      - event: [push, manual]
     settings:
       host: 192.168.100.199
       username: fred
