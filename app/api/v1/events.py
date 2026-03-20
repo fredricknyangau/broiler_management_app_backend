@@ -5,7 +5,7 @@ from datetime import date
 from typing import List, Optional
 from uuid import UUID
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_db, get_current_user, set_tenant_context
 from app.db.models.user import User
 from app.db.models.flock import Flock
 from app.db.models.events import (
@@ -355,6 +355,7 @@ async def create_weight_event(
         **event_in.model_dump(exclude={"event_id"}), 
         id=event_in.event_id,
         flock_id=flock_id,
+        event_date=event_date,
         measurement_date=event_date
     )
     db.add(event)

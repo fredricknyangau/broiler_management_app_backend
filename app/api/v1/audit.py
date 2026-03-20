@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 from typing import List, Optional
-from app.api.deps import get_db, get_current_admin_user
+from app.api.deps import get_db, get_current_admin_user, set_tenant_context
 from app.db.models.audit import AuditLog
 from app.db.models.user import User
 from app.schemas.audit import AuditLogResponse

@@ -4,7 +4,7 @@ from sqlalchemy import select
 from typing import List
 from uuid import UUID
 
-from app.api.deps import get_db, get_current_user # Auth optional for reading market prices? enforcing for now
+from app.api.deps import get_db, get_current_user # Auth optional for reading market prices? enforcing for now, set_tenant_context
 from app.db.models.market import MarketPrice
 from app.schemas.market import MarketPriceCreate, MarketPriceResponse
 

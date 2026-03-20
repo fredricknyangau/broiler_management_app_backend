@@ -7,7 +7,7 @@ from datetime import date, timedelta
 import csv
 import io
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_db, get_current_user, set_tenant_context
 from app.db.models.user import User
 from app.db.models.flock import Flock
 from app.db.models.finance import Sale, Expenditure

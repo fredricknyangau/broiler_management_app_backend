@@ -4,7 +4,7 @@ from sqlalchemy import select
 from typing import List
 from uuid import UUID
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_db, get_current_user, set_tenant_context
 from app.db.models.health import VetConsultation
 from app.db.models.user import User
 from app.schemas.health import VetConsultationCreate, VetConsultationResponse

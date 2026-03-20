@@ -44,7 +44,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql://broiler_user:broiler_pass@postgres:5432/broiler_farm_db
+      - DATABASE_URL=postgresql+asyncpg://broiler_user:broiler_pass@postgres:5432/broiler_farm_db
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=dev-secret-key-change-in-production
       - DEBUG=True
@@ -67,7 +67,7 @@ services:
     container_name: broiler_celery_worker
     command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=4
     environment:
-      - DATABASE_URL=postgresql://broiler_user:broiler_pass@postgres:5432/broiler_farm_db
+      - DATABASE_URL=postgresql+asyncpg://broiler_user:broiler_pass@postgres:5432/broiler_farm_db
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=dev-secret-key-change-in-production
     volumes:
@@ -89,7 +89,7 @@ services:
     container_name: broiler_celery_beat
     command: celery -A app.workers.celery_app beat --loglevel=info
     environment:
-      - DATABASE_URL=postgresql://broiler_user:broiler_pass@postgres:5432/broiler_farm_db
+      - DATABASE_URL=postgresql+asyncpg://broiler_user:broiler_pass@postgres:5432/broiler_farm_db
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=dev-secret-key-change-in-production
     volumes:
