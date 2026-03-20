@@ -69,6 +69,7 @@ async def create_mortality_event(
     event = MortalityEvent(
         **event_in.model_dump(exclude={"event_id"}), 
         id=event_in.event_id,
+        event_id=event_in.event_id,
         flock_id=flock_id,
         event_date=event_date
     )
@@ -164,6 +165,7 @@ async def create_feed_event(
     event = FeedConsumptionEvent(
         **event_in.model_dump(exclude={"event_id"}), 
         id=event_in.event_id,
+        event_id=event_in.event_id,
         flock_id=flock_id,
         event_date=event_date
     )
@@ -259,6 +261,7 @@ async def create_vaccination_event(
     event = VaccinationEvent(
         **event_in.model_dump(exclude={"event_id"}), 
         id=event_in.event_id,
+        event_id=event_in.event_id,
         flock_id=flock_id,
         event_date=event_date
     )
@@ -354,6 +357,7 @@ async def create_weight_event(
     event = WeightMeasurementEvent(
         **event_in.model_dump(exclude={"event_id"}), 
         id=event_in.event_id,
+        event_id=event_in.event_id,
         flock_id=flock_id,
         event_date=event_date,
         measurement_date=event_date

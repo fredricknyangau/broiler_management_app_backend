@@ -14,6 +14,10 @@ from app.db.models.biosecurity import BiosecurityCheck
 from app.db.models.people import Supplier, Customer, Employee
 from app.db.models.role import Role
 from app.db.models.config import SystemConfig
+from app.db.models.resource import Resource
+from app.db.models.user_setting import UserSetting
+from app.db.models.scheduled_task import ScheduledTask
+from app.db.models.audit import AuditLog
 
 __all__ = [
     "User",
@@ -32,5 +36,9 @@ __all__ = [
     "Customer",
     "Employee",
     "Role",
-    "SystemConfig"
+    "SystemConfig",
+    "Resource",
+    "UserSetting",
+    "ScheduledTask",
+    "AuditLog"
 ]

@@ -186,7 +186,7 @@ async def export_report(
         flocks_res = await db.execute(select(Flock).filter(Flock.farmer_id == current_user.id))
         flocks = flocks_res.scalars().all()
         for f in flocks:
-            writer.writerow([f.name, f.commencement_date, f.initial_count, f.status])
+            writer.writerow([f.name, f.start_date, f.initial_count, f.status])
     
     output.seek(0)
     

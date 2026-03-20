@@ -121,9 +121,6 @@ class WeightMeasurementEvent(Base, BaseEvent):
     max_weight_grams = Column(DECIMAL(10, 2))
     notes = Column(Text)
     
-    @property
-    def event_date(self):
-        return self.measurement_date
 
     # Relationships
     flock = relationship("Flock", back_populates="weight_events")

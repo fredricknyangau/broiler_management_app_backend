@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from app.config import settings
-from app.api.v1 import auth, flocks, daily_checks, finance, inventory, biosecurity, alerts, events, health, market, admin, data, people, analytics, billing, audit
+from app.api.v1 import auth, flocks, daily_checks, finance, inventory, biosecurity, alerts, events, health, market, admin, data, people, analytics, billing, audit, resources, settings as settings_router, tasks
 import structlog
 from app.core.logging import setup_logging
 
@@ -60,6 +60,9 @@ app.include_router(people.router, prefix=f"{settings.API_V1_PREFIX}/people", tag
 app.include_router(analytics.router, prefix=f"{settings.API_V1_PREFIX}/analytics", tags=["Analytics"])
 app.include_router(billing.router, prefix=f"{settings.API_V1_PREFIX}/billing", tags=["Billing"])
 app.include_router(audit.router, prefix=f"{settings.API_V1_PREFIX}/audit", tags=["Audit"])
+app.include_router(resources.router, prefix=f"{settings.API_V1_PREFIX}/resources", tags=["Resources"])
+app.include_router(settings_router.router, prefix=f"{settings.API_V1_PREFIX}/settings", tags=["Settings"])
+app.include_router(tasks.router, prefix=f"{settings.API_V1_PREFIX}/tasks", tags=["Tasks"])
 
 @app.get("/")
 async def root():

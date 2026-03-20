@@ -1,4 +1,5 @@
 from sqlalchemy import Column, String, DateTime, ForeignKey, JSON
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.db.base import Base, UUIDMixin
@@ -6,7 +7,8 @@ from app.db.base import Base, UUIDMixin
 class AuditLog(Base, UUIDMixin):
     __tablename__ = "audit_logs"
 
-    user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
     action = Column(String(255), nullable=False, doc="Action performed (e.g., CREATE_USER, DELETED_FLOCK)")
     resource_type = Column(String(100), nullable=True, doc="Resource type (e.g., User, Flock)")
     resource_id = Column(String(36), nullable=True, doc="ID of the resource affected")

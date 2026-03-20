@@ -1,0 +1,63 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from typing import List
+from uuid import UUID
+from app.api.deps import get_db, get_current_user, set_tenant_context
+from app.db.models.user import User
+from app.db.models.scheduled_task import ScheduledTask
+from app.schemas.scheduled_task import ScheduledTaskResponse, ScheduledTaskCreate, ScheduledTaskUpdate
+
+router = APIRouter()
+
+@router.get("/", response_model=List[ScheduledTaskResponse])
+async def read_tasks(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """List user's scheduled tasks."""
+    await set_tenant_context(db, current_user)
+    stmt = select(ScheduledTask).filter(ScheduledTask.user_id == current_user.id)
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+@router.post("/", response_model=ScheduledTaskResponse, status_code=status.HTTP_201_CREATED)
+async def create_task(
+    task_in: ScheduledTaskCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new scheduled task."""
+    await set_tenant_context(db, current_user)
+    task = ScheduledTask(
+        **task_in.model_dump(),
+        user_id=current_user.id
+    )
+    db.add(task)
+    await db.commit()
+    await db.refresh(task)
+    return task
+
+@router.put("/{task_id}", response_model=ScheduledTaskResponse)
+async def update_task(
+    task_id: UUID,
+    task_in: ScheduledTaskUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update a task."""
+    await set_tenant_context(db, current_user)
+    stmt = select(ScheduledTask).filter(ScheduledTask.id == task_id, ScheduledTask.user_id == current_user.id)
+    result = await db.execute(stmt)
+    task = result.scalars().first()
+    
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+        
+    update_data = task_in.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(task, field, value)
+        
+    await db.commit()
+    await db.refresh(task)
+    return task
