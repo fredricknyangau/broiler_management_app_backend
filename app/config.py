@@ -17,13 +17,30 @@ class Settings(BaseSettings):
 
     @property
     def ASYNC_DATABASE_URL(self) -> str:
-        """Ensure the URL uses the asyncpg driver."""
+        """Ensure the URL uses the asyncpg driver and strips incompatible options."""
+        from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
+        
         url = self.DATABASE_URL
         if url.startswith("postgresql://"):
-            return url.replace("postgresql://", "postgresql+asyncpg://", 1)
-        if url.startswith("postgresql+psycopg2://"):
-            return url.replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1)
-        return url
+            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        elif url.startswith("postgresql+psycopg2://"):
+            url = url.replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1)
+            
+        parsed = urlparse(url)
+        qsl = parse_qsl(parsed.query)
+        # Filter out 'sslmode' which asyncpg doesn't support as a query arg
+        filtered_qsl = [(k, v) for k, v in qsl if k != 'sslmode']
+        rebuilt = parsed._replace(query=urlencode(filtered_qsl))
+        return urlunparse(rebuilt)
+
+    @property
+    def ASYNC_CONNECT_ARGS(self) -> dict:
+        """Returns connect args conditionally (e.g., enable SSL if requested)."""
+        args = {}
+        # If original string demanded SSL, translate to asyncpg 'ssl' argument
+        if "sslmode=require" in self.DATABASE_URL or "sslmode=verify" in self.DATABASE_URL:
+            args["ssl"] = True
+        return args
 
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
