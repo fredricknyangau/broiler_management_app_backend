@@ -56,8 +56,13 @@ class Settings(BaseSettings):
     MPESA_CONSUMER_KEY: str = "place_holder"
     MPESA_CONSUMER_SECRET: str = "place_holder"
     MPESA_PASSKEY: str = "place_holder"
-    MPESA_SHORTCODE: str = "174379"  # Default test shortcode
+    MPESA_SHORTCODE: str = "174379"
     MPESA_CALLBACK_URL: str = "https://your-domain.com/api/v1/billing/mpesa/callback"
+
+    # AI Integration
+    LLM_PROVIDER: str = "openai"
+    LLM_API_KEY: Optional[str] = None
+    GEMINI_MODEL: str = "gemini-1.5-flash"
 
 
 settings = Settings()

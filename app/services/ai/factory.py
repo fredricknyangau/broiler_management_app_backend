@@ -1,7 +1,7 @@
 from app.config import settings
 from .base import AIProvider
 from .openai_provider import OpenAIProvider
-# AnthropicProvider can be imported here later
+from .gemini_provider import GeminiProvider
 
 def get_ai_provider() -> AIProvider:
     """
@@ -12,8 +12,9 @@ def get_ai_provider() -> AIProvider:
     
     if provider_name == "openai":
         return OpenAIProvider()
+    elif provider_name == "gemini":
+        return GeminiProvider()
     elif provider_name == "anthropic":
-        # return AnthropicProvider()
         raise NotImplementedError("Anthropic provider is not yet implemented")
     else:
         return OpenAIProvider()
