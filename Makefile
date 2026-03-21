@@ -16,32 +16,32 @@ help:
 	@echo "format      - Format code with black and isort"
 
 build:
-	docker-compose build
+	docker compose build
 
 up:
-	docker-compose up -d
+	docker compose up -d
 
 down:
-	docker-compose down
+	docker compose down
 
 logs:
-	docker-compose logs -f
+	docker compose logs -f
 
 shell:
-	docker-compose exec api /bin/bash
+	docker compose exec api /bin/bash
 
 db-shell:
-	docker-compose exec postgres psql -U broiler_user -d broiler_farm_db
+	docker compose exec postgres psql -U broiler_user -d broiler_farm_db
 
 migrate:
-	docker-compose exec api alembic upgrade head
+	docker compose exec api alembic upgrade head
 
 test:
-	docker-compose exec api pytest
+	docker compose exec api pytest
 
 lint:
-	docker-compose exec api pylint app
+	docker compose exec api pylint app
 
 format:
-	docker-compose exec api black app
-	docker-compose exec api isort app
+	docker compose exec api black app
+	docker compose exec api isort app

@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, select
+from sqlalchemy import func, select, or_
 from sqlalchemy.orm import joinedload
-from typing import List, Any, Optional
+from typing import List, Any, Optional, Generic, TypeVar
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timedelta
 from pydantic import BaseModel
+from typing import Dict
 
 from app.api.deps import get_db, get_current_admin_user
 from app.db.models.user import User, UserRole
@@ -20,22 +21,46 @@ from app.db.models.config import SystemConfig
 from app.schemas.billing import SubscriptionResponse
 from app.schemas.role import RoleCreate, RoleUpdate, RoleResponse
 from app.schemas.config import SystemConfigCreate, SystemConfigUpdate, SystemConfigResponse
+from app.db.models.audit import AuditLog
+from app.schemas.audit import AuditLogResponse
 
 router = APIRouter()
 
-@router.get("/users", response_model=List[UserResponse])
+T = TypeVar('T')
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    items: List[T]
+    total_count: int
+    total_pages: int
+    current_page: int
+
+@router.get("/users", response_model=PaginatedResponse[UserResponse])
 async def get_all_users(
     skip: int = 0,
     limit: int = 100,
+    search: Optional[str] = None,
     current_admin: User = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db)
 ) -> Any:
     """
-    List all users (Admin only)
+    List all users with pagination and search
     """
-    result = await db.execute(select(User).offset(skip).limit(limit))
+    query = select(User)
+    if search:
+        query = query.filter(or_(User.email.ilike(f"%{search}%"), User.full_name.ilike(f"%{search}%")))
+        
+    total_res = await db.execute(select(func.count()).select_from(query.subquery()))
+    total_count = total_res.scalar() or 0
+    
+    result = await db.execute(query.order_by(User.created_at.desc()).offset(skip).limit(limit))
     users = result.scalars().all()
-    return users
+    
+    return PaginatedResponse(
+        items=users,
+        total_count=total_count,
+        total_pages=(total_count + limit - 1) // limit if limit > 0 else 1,
+        current_page=(skip // limit) + 1 if limit > 0 else 1
+    )
 
 @router.put("/users/{user_id}", response_model=UserResponse)
 async def update_user_status(
@@ -115,7 +140,9 @@ class AdminStats(BaseModel):
     active_subscriptions: int
     total_revenue_est: float
     total_flocks: int
-    active_flocks: int
+    users_growth_percent: float = 0.0
+    revenue_growth_percent: float = 0.0
+    users_by_plan: Dict[str, int] = {}
 
 class AdminTransaction(BaseModel):
     id: UUID
@@ -147,6 +174,7 @@ async def get_system_stats(
     active_subs = active_subs_result.scalars().all()
     active_subs_count = len(active_subs)
     
+    users_by_plan = {}
     revenue = 0.0
     for sub in active_subs:
         try:
@@ -154,6 +182,29 @@ async def get_system_stats(
                 revenue += float(sub.amount)
         except:
             pass
+        plan = str(sub.plan_type)
+        users_by_plan[plan] = users_by_plan.get(plan, 0) + 1
+            
+    # Calculate M-o-M Growth
+    now = datetime.now()
+    thirty_days_ago = now - timedelta(days=30)
+    sixty_days_ago = now - timedelta(days=60)
+    
+    users_tm_res = await db.execute(select(func.count(User.id)).filter(User.created_at >= thirty_days_ago))
+    users_lm_res = await db.execute(select(func.count(User.id)).filter(User.created_at >= sixty_days_ago, User.created_at < thirty_days_ago))
+    users_tm = users_tm_res.scalar() or 0
+    users_lm = users_lm_res.scalar() or 0
+    users_growth = ((users_tm - users_lm) / users_lm * 100.0) if users_lm > 0 else (100.0 if users_tm > 0 else 0.0)
+    
+    rev_tm_res = await db.execute(select(Subscription).filter(Subscription.created_at >= thirty_days_ago, Subscription.status == SubscriptionStatus.ACTIVE))
+    rev_lm_res = await db.execute(select(Subscription).filter(Subscription.created_at >= sixty_days_ago, Subscription.created_at < thirty_days_ago, Subscription.status == SubscriptionStatus.ACTIVE))
+    
+    def sum_rev(subs):
+        return sum(float(s.amount) for s in subs if s.amount and s.amount.replace('.','',1).isdigit())
+        
+    rev_tm = sum_rev(rev_tm_res.scalars().all())
+    rev_lm = sum_rev(rev_lm_res.scalars().all())
+    rev_growth = ((rev_tm - rev_lm) / rev_lm * 100.0) if rev_lm > 0 else (100.0 if rev_tm > 0 else 0.0)
             
     return AdminStats(
         total_users=total_users.scalar() or 0,
@@ -161,25 +212,33 @@ async def get_system_stats(
         active_subscriptions=active_subs_count,
         total_revenue_est=revenue,
         total_flocks=total_flocks.scalar() or 0,
-        active_flocks=active_flocks.scalar() or 0
+        active_flocks=active_flocks.scalar() or 0,
+        users_growth_percent=round(users_growth, 2),
+        revenue_growth_percent=round(rev_growth, 2),
+        users_by_plan=users_by_plan
     )
 
-@router.get("/transactions", response_model=List[AdminTransaction])
+@router.get("/transactions", response_model=PaginatedResponse[AdminTransaction])
 async def get_transactions(
     limit: int = 50,
     skip: int = 0,
+    search: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
     """
-    List all subscriptions (transactions).
+    List all subscriptions (transactions) securely.
     """
+    query = select(Subscription).options(joinedload(Subscription.user))
+    if search:
+        query = query.join(User).filter(or_(User.email.ilike(f"%{search}%"), Subscription.plan_type.ilike(f"%{search}%")))
+        
+    total_res = await db.execute(select(func.count()).select_from(query.subquery()))
+    total_count = total_res.scalar() or 0
+
     result = await db.execute(
-        select(Subscription)
-        .options(joinedload(Subscription.user)) # Eager load user
-        .order_by(Subscription.created_at.desc())
-        .offset(skip)
-        .limit(limit)
+        query.order_by(Subscription.created_at.desc())
+        .offset(skip).limit(limit)
     )
     subs = result.scalars().all()
     
@@ -194,7 +253,13 @@ async def get_transactions(
             date=sub.created_at,
             mpesa_ref=sub.mpesa_reference
         ))
-    return results
+    
+    return PaginatedResponse(
+        items=results,
+        total_count=total_count,
+        total_pages=(total_count + limit - 1) // limit if limit > 0 else 1,
+        current_page=(skip // limit) + 1 if limit > 0 else 1
+    )
 
 @router.post("/users/{user_id}/plan")
 async def assign_user_plan(
@@ -340,13 +405,36 @@ async def delete_role(
 # --- System Configuration ---
 
 @router.get("/config", response_model=List[SystemConfigResponse])
-async def get_system_config(
+async def get_system_configs(
     db: AsyncSession = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
-    """Get all system configurations (Admin only)."""
+    """
+    List all system configurations (Admin only)
+    """
     result = await db.execute(select(SystemConfig))
-    return result.scalars().all()
+    configs = list(result.scalars().all())
+    
+    # Auto-seed Phase 4 typed defaults
+    existing_keys = {c.key for c in configs}
+    defaults = {
+        "MAINTENANCE_MODE": "false",
+        "REGISTRATION_OPEN": "true",
+        "GLOBAL_BANNER": ""
+    }
+    
+    added_new = False
+    for key, val in defaults.items():
+        if key not in existing_keys:
+            new_conf = SystemConfig(key=key, value=val, category="system", is_encrypted=False)
+            db.add(new_conf)
+            configs.append(new_conf)
+            added_new = True
+            
+    if added_new:
+        await db.commit()
+        
+    return configs
 
 @router.post("/config", response_model=SystemConfigResponse)
 async def create_or_update_config(
@@ -375,3 +463,49 @@ async def create_or_update_config(
     
     await log_action(db, action, current_admin.id, "SystemConfig", str(db_obj.id), {"key": config_in.key})
     return db_obj
+
+
+# --- Audit Logs ---
+
+@router.get("/audit-logs", response_model=PaginatedResponse[AuditLogResponse])
+async def get_audit_logs(
+    skip: int = 0,
+    limit: int = 100,
+    search: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """
+    Get system audit logs (Admin only)
+    """
+    query = select(AuditLog).options(joinedload(AuditLog.user))
+    if search:
+        query = query.join(User, isouter=True).filter(
+            or_(
+                AuditLog.action.ilike(f"%{search}%"),
+                User.email.ilike(f"%{search}%"),
+                AuditLog.resource_type.ilike(f"%{search}%")
+            )
+        )
+        
+    total_res = await db.execute(select(func.count()).select_from(query.subquery()))
+    total_count = total_res.scalar() or 0
+
+    result = await db.execute(
+        query.order_by(AuditLog.timestamp.desc())
+        .offset(skip).limit(limit)
+    )
+    logs = result.scalars().all()
+    
+    # Map user_email for frontend friendly response
+    for log in logs:
+        if log.user:
+            log.user_email = log.user.email
+            
+    return PaginatedResponse(
+        items=logs,
+        total_count=total_count,
+        total_pages=(total_count + limit - 1) // limit if limit > 0 else 1,
+        current_page=(skip // limit) + 1 if limit > 0 else 1
+    )
+

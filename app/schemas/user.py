@@ -32,6 +32,8 @@ class UserUpdate(BaseModel):
     phone_number: Optional[str] = None
     location: Optional[str] = None
     role: Optional[str] = None
+    is_active: Optional[bool] = None
+    is_superuser: Optional[bool] = None
     preferences: Optional[Dict[str, Any]] = None
 
 
