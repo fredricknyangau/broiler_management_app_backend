@@ -29,8 +29,27 @@ async def create_task(
 ):
     """Create a new scheduled task."""
     await set_tenant_context(db, current_user)
+
+    if task_in.recurrence_interval is not None:
+        from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType
+        sub_res = await db.execute(
+            select(Subscription).filter(
+                Subscription.user_id == current_user.id,
+                Subscription.status == SubscriptionStatus.ACTIVE
+            ).order_by(Subscription.created_at.desc())
+        )
+        sub = sub_res.scalars().first()
+        current_plan = sub.plan_type if sub else PlanType.STARTER
+
+        if current_plan == PlanType.STARTER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Recurring schedules require a Professional Plan subscription."
+            )
+
+    task_data = task_in.model_dump(exclude={'recurrence_interval'})
     task = ScheduledTask(
-        **task_in.model_dump(),
+        **task_data,
         user_id=current_user.id
     )
     db.add(task)

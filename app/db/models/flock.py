@@ -14,6 +14,7 @@ class Flock(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "flocks"
 
     farmer_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    farm_id = Column(UUID(as_uuid=True), ForeignKey("farms.id", ondelete="CASCADE"), nullable=True, index=True, doc="The Farm ID this flock belongs to")
     
     # Basic Details
     name = Column(String(255), nullable=False, doc="Name or identifier of the batch (e.g., 'Batch A')")
@@ -36,6 +37,7 @@ class Flock(Base, UUIDMixin, TimestampMixin):
 
     # Relationships
     farmer = relationship("User", back_populates="flocks")
+    farm = relationship("Farm", backref="flocks")
     daily_checks = relationship("DailyCheck", back_populates="flock", cascade="all, delete-orphan")
     mortality_events = relationship("MortalityEvent", back_populates="flock", cascade="all, delete-orphan")
     feed_events = relationship("FeedConsumptionEvent", back_populates="flock", cascade="all, delete-orphan")

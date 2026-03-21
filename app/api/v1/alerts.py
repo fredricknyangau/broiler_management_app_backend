@@ -5,13 +5,13 @@ from typing import List
 from uuid import UUID
 from datetime import datetime
 
-from app.api.deps import get_db, get_current_user, set_tenant_context
+from app.api.deps import get_db, get_current_user, set_tenant_context, check_professional_subscription
 from app.db.models.alert import Alert
 from app.db.models.user import User
 from app.db.models.flock import Flock
 from app.schemas.alert import AlertResponse, AlertUpdate
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(check_professional_subscription)])
 
 @router.get("/", response_model=List[AlertResponse])
 async def read_alerts(

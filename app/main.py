@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from app.config import settings
-from app.api.v1 import auth, flocks, daily_checks, finance, inventory, biosecurity, alerts, events, health, market, admin, data, people, analytics, billing, audit, resources, settings as settings_router, tasks
+from app.api.v1 import auth, flocks, daily_checks, finance, inventory, biosecurity, alerts, events, health, market, admin, data, people, analytics, billing, audit, resources, settings as settings_router, tasks, farms
 import structlog
 from app.core.logging import setup_logging
 
@@ -46,6 +46,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 # Include routers
 app.include_router(auth.router, prefix=f"{settings.API_V1_PREFIX}/auth", tags=["Authentication"])
 app.include_router(flocks.router, prefix=f"{settings.API_V1_PREFIX}/flocks", tags=["Flocks"])
+app.include_router(farms.router, prefix=f"{settings.API_V1_PREFIX}/farms", tags=["Farms"])
 app.include_router(daily_checks.router, prefix=f"{settings.API_V1_PREFIX}", tags=["Daily Checks"])
 app.include_router(finance.router, prefix=f"{settings.API_V1_PREFIX}/finance", tags=["Finance"])
 app.include_router(inventory.router, prefix=f"{settings.API_V1_PREFIX}/inventory", tags=["Inventory"])

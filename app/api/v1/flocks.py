@@ -46,8 +46,7 @@ async def create_flock(
 
     # 2. Check limits if on STARTER
     if current_plan == PlanType.STARTER:
-        # Check active flocks count
-        # Could optimize with select(func.count(Flock.id))
+        # Check total birds count in active flocks
         result = await db.execute(
             select(Flock).filter(
                 Flock.farmer_id == current_user.id,
@@ -55,12 +54,18 @@ async def create_flock(
             )
         )
         active_flocks = result.scalars().all()
-        active_flocks_count = len(active_flocks)
-        
-        if active_flocks_count >= 2:
+        total_birds = sum(f.initial_count for f in active_flocks) + flock_in.initial_count
+
+        if len(active_flocks) >= 1:
             raise HTTPException(
-                status_code=403, 
-                detail="Starter plan is limited to 2 active batches. Please upgrade to create more."
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Starter Plan is limited to a Single Active Flock (Single Batch Production). Upgrade to Professional for unlimited batches."
+            )
+
+        if total_birds > 100:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, 
+                detail=f"Starter plan is limited to 100 birds total. You currently have {total_birds - flock_in.initial_count} active birds. Adding {flock_in.initial_count} exceeds the limit."
             )
     
     db.add(flock)

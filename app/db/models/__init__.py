@@ -1,4 +1,5 @@
 from app.db.models.user import User
+from app.db.models.farm import Farm
 from app.db.models.flock import Flock
 from app.db.models.daily_check import DailyCheck
 from app.db.models.events import (
@@ -21,6 +22,7 @@ from app.db.models.audit import AuditLog
 
 __all__ = [
     "User",
+    "Farm",
     "Flock",
     "DailyCheck",
     "MortalityEvent",

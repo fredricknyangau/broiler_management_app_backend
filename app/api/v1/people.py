@@ -197,7 +197,7 @@ async def read_employees(
     )
     return result.scalars().all()
 
-@router.post("/employees", response_model=schemas.Employee)
+@router.post("/employees", response_model=schemas.Employee, dependencies=[Depends(deps.check_professional_subscription)])
 async def create_employee(
     *,
     db: AsyncSession = Depends(deps.get_db),
@@ -207,6 +207,30 @@ async def create_employee(
     """
     Create new employee.
     """
+    from sqlalchemy import func
+    from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType
+
+    # Count current employees
+    emp_count_res = await db.execute(
+        select(func.count(Employee.id)).filter(Employee.user_id == current_user.id)
+    )
+    emp_count = emp_count_res.scalar() or 0
+
+    # Plan Limit Check
+    sub_res = await db.execute(
+        select(Subscription).filter(
+            Subscription.user_id == current_user.id,
+            Subscription.status == SubscriptionStatus.ACTIVE
+        ).order_by(Subscription.created_at.desc())
+    )
+    sub = sub_res.scalars().first()
+    current_plan = sub.plan_type if sub else PlanType.STARTER
+
+    if current_plan == PlanType.PROFESSIONAL and emp_count >= 3:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Professional Plan supports up to 3 Employees. Upgrade to Enterprise for unlimited seats."
+        )
     employee = Employee(
         **employee_in.model_dump(),
         user_id=current_user.id
@@ -216,7 +240,7 @@ async def create_employee(
     await db.refresh(employee)
     return employee
 
-@router.put("/employees/{employee_id}", response_model=schemas.Employee)
+@router.put("/employees/{employee_id}", response_model=schemas.Employee, dependencies=[Depends(deps.check_professional_subscription)])
 async def update_employee(
     *,
     db: AsyncSession = Depends(deps.get_db),
@@ -241,7 +265,7 @@ async def update_employee(
     await db.refresh(employee)
     return employee
 
-@router.delete("/employees/{employee_id}", response_model=schemas.Employee)
+@router.delete("/employees/{employee_id}", response_model=schemas.Employee, dependencies=[Depends(deps.check_professional_subscription)])
 async def delete_employee(
     *,
     db: AsyncSession = Depends(deps.get_db),

@@ -8,6 +8,7 @@ from uuid import UUID
 
 from app.db.session import get_db
 from app.db.models.user import User, UserRole
+from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType
 from app.core.security import SECRET_KEY, ALGORITHM
 
 security = HTTPBearer()
@@ -102,3 +103,51 @@ def get_current_manager_user(
             detail="The user doesn't have enough privileges"
         )
     return current_user
+
+async def check_professional_subscription(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> bool:
+    """
+    Dependency to verify user has an active Professional or Enterprise plan.
+    Throws 403 Forbidden if they are on the Starter tier.
+    """
+    result = await db.execute(
+        select(Subscription).filter(
+            Subscription.user_id == current_user.id,
+            Subscription.status == SubscriptionStatus.ACTIVE
+        )
+    )
+    sub = result.scalars().first()
+    
+    if not sub or sub.plan_type == PlanType.STARTER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This feature requires a Professional Plan subscription."
+        )
+        
+    return True
+
+async def check_enterprise_subscription(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> bool:
+    """
+    Dependency to verify user has an active Enterprise plan.
+    Throws 403 Forbidden if they are on Starter or Professional tiers.
+    """
+    result = await db.execute(
+        select(Subscription).filter(
+            Subscription.user_id == current_user.id,
+            Subscription.status == SubscriptionStatus.ACTIVE
+        )
+    )
+    sub = result.scalars().first()
+    
+    if not sub or sub.plan_type != PlanType.ENTERPRISE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This feature requires an Enterprise Plan subscription."
+        )
+        
+    return True

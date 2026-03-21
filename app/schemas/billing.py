@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
 
@@ -10,8 +10,6 @@ class SubscriptionCreate(BaseModel):
     phone_number: str # Format: 2547XXXXXXXX
 
 class MpesaCallbackById(BaseModel):
-    # Simplified structure for internal manual updates if needed, 
-    # but initially we'll handle the raw JSON from Safaricom in the service
     pass
 
 class SubscriptionResponse(BaseModel):
@@ -25,3 +23,14 @@ class SubscriptionResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class PlanResponse(BaseModel):
+    id: str # e.g., "STARTER", "PROFESSIONAL", "ENTERPRISE"
+    name: str # e.g., "Starter", "Professional"
+    description: str
+    monthly_price: str # e.g., "Free", "KES 500"
+    annual_price: Optional[str] = None # e.g., "KES 5,000"
+    period: str # e.g., "/ monthly", "/ forever"
+    features: List[str]
+    cta: str # e.g., "Get Started Free"
+    popular: bool

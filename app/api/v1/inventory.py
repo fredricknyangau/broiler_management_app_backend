@@ -5,14 +5,14 @@ from typing import List
 from uuid import UUID
 from datetime import date
 
-from app.api.deps import get_db, get_current_user, set_tenant_context
+from app.api.deps import get_db, get_current_user, set_tenant_context, check_professional_subscription
 from app.db.models.inventory import InventoryItem
 from app.db.models.user import User
 from app.db.models.inventory_history import InventoryHistory, InventoryAction
 from app.schemas.inventory import InventoryItemCreate, InventoryItemResponse, InventoryItemUpdate, InventoryHistoryResponse
 from app.services.alert_service import AlertService
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(check_professional_subscription)])
 
 @router.post("/", response_model=InventoryItemResponse, status_code=status.HTTP_201_CREATED)
 async def create_inventory_item(

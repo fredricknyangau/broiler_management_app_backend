@@ -1,11 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
 from uuid import UUID
 from datetime import date
+import csv
+import io
 
-from app.api.deps import get_db, get_current_user, set_tenant_context
+from app.api.deps import get_db, get_current_user, set_tenant_context, check_professional_subscription
 from app.db.models.finance import Expenditure, Sale
 from app.db.models.user import User
 from app.db.models.inventory import InventoryItem
@@ -31,6 +34,25 @@ async def create_expenditure(
     """
     Record a new expense.
     """
+    from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType
+
+    # Plan Limit Check
+    sub_res = await db.execute(
+        select(Subscription).filter(
+            Subscription.user_id == current_user.id,
+            Subscription.status == SubscriptionStatus.ACTIVE
+        ).order_by(Subscription.created_at.desc())
+    )
+    sub = sub_res.scalars().first()
+    current_plan = sub.plan_type if sub else PlanType.STARTER
+
+    WHITELIST_CATEGORIES = ['feed', 'chicks', 'medicine', 'utilities', 'other']
+    if current_plan == PlanType.STARTER and item_in.category.lower() not in WHITELIST_CATEGORIES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Custom expense categories require a Professional Plan. Allowed: {', '.join(WHITELIST_CATEGORIES)}."
+        )
+
     expense_data = item_in.model_dump(exclude={'create_inventory_item', 'new_inventory_name', 'new_inventory_unit'})
     
     # Handle Inventory Linking/Creation
@@ -128,9 +150,26 @@ async def read_expenditures(
     """
     List expenditures, optionally filtered by flock_id.
     """
+    from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType
+    from datetime import timedelta
+
+    # Plan Limit Check
+    sub_res = await db.execute(
+        select(Subscription).filter(
+            Subscription.user_id == current_user.id,
+            Subscription.status == SubscriptionStatus.ACTIVE
+        ).order_by(Subscription.created_at.desc())
+    )
+    sub = sub_res.scalars().first()
+    current_plan = sub.plan_type if sub else PlanType.STARTER
+
     stmt = select(Expenditure).filter(Expenditure.farmer_id == current_user.id)
     if flock_id:
         stmt = stmt.filter(Expenditure.flock_id == flock_id)
+        
+    if current_plan == PlanType.STARTER:
+        stmt = stmt.filter(Expenditure.date >= date.today() - timedelta(days=90))
+
     result = await db.execute(stmt.offset(skip).limit(limit))
     return result.scalars().all()
 
@@ -149,6 +188,25 @@ async def update_expenditure(
     if not item:
         raise HTTPException(status_code=404, detail="Expenditure not found")
     
+    if item_in.category:
+        from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType
+        # Plan Limit Check
+        sub_res = await db.execute(
+            select(Subscription).filter(
+                Subscription.user_id == current_user.id,
+                Subscription.status == SubscriptionStatus.ACTIVE
+            ).order_by(Subscription.created_at.desc())
+        )
+        sub = sub_res.scalars().first()
+        current_plan = sub.plan_type if sub else PlanType.STARTER
+
+        WHITELIST_CATEGORIES = ['feed', 'chicks', 'medicine', 'utilities', 'other']
+        if current_plan == PlanType.STARTER and item_in.category.lower() not in WHITELIST_CATEGORIES:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Custom expense categories require a Professional Plan. Allowed: {', '.join(WHITELIST_CATEGORIES)}."
+            )
+
     update_data = item_in.model_dump(exclude_unset=True)
     
     # Handle Inventory Linkage during Update
@@ -247,9 +305,26 @@ async def read_sales(
     """
     List sales, optionally filtered by flock_id.
     """
+    from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType
+    from datetime import timedelta
+
+    # Plan Limit Check
+    sub_res = await db.execute(
+        select(Subscription).filter(
+            Subscription.user_id == current_user.id,
+            Subscription.status == SubscriptionStatus.ACTIVE
+        ).order_by(Subscription.created_at.desc())
+    )
+    sub = sub_res.scalars().first()
+    current_plan = sub.plan_type if sub else PlanType.STARTER
+
     stmt = select(Sale).filter(Sale.farmer_id == current_user.id)
     if flock_id:
         stmt = stmt.filter(Sale.flock_id == flock_id)
+        
+    if current_plan == PlanType.STARTER:
+        stmt = stmt.filter(Sale.date >= date.today() - timedelta(days=90))
+
     result = await db.execute(stmt.offset(skip).limit(limit))
     return result.scalars().all()
 
@@ -294,3 +369,37 @@ async def delete_sale(
     await db.delete(item)
     await db.commit()
     return None
+
+@router.get("/export", dependencies=[Depends(check_professional_subscription)])
+async def export_financials(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Export financial data (Sales & Expenditures) as CSV.
+    Requires Professional Plan.
+    """
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    writer.writerow(["Date", "Type", "Category/Item", "Amount", "Description"])
+    
+    # Sales
+    sales_res = await db.execute(select(Sale).filter(Sale.farmer_id == current_user.id))
+    sales = sales_res.scalars().all()
+    for s in sales:
+        writer.writerow([s.date, "Income", "Chicken Sales", float(s.total_amount), s.notes or ""])
+        
+    # Expenditures
+    expenses_res = await db.execute(select(Expenditure).filter(Expenditure.farmer_id == current_user.id))
+    expenses = expenses_res.scalars().all()
+    for e in expenses:
+        writer.writerow([e.date, "Expense", e.category, float(e.amount), e.description])
+        
+    output.seek(0)
+    
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=financial_report.csv"}
+    )

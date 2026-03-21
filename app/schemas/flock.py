@@ -15,6 +15,7 @@ class FlockBase(BaseModel):
     total_acquisition_cost: Optional[float] = 0.0
     status: str = Field("active", pattern="^(active|completed|sold|culled|terminated)$")
     notes: Optional[str] = None
+    farm_id: Optional[UUID4] = None
 
 class FlockCreate(FlockBase):
     """Properties to receive on flock creation."""
@@ -33,6 +34,7 @@ class FlockUpdate(BaseModel):
     expected_end_date: Optional[date] = None
     status: Optional[str] = Field(None, pattern="^(active|completed|sold|culled|terminated)$")
     notes: Optional[str] = None
+    farm_id: Optional[UUID4] = None
 
 class FlockResponse(FlockBase):
     """Properties to return to client."""

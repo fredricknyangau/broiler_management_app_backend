@@ -12,7 +12,7 @@ class ScheduledTaskBase(BaseModel):
     flock_id: Optional[UUID] = None
 
 class ScheduledTaskCreate(ScheduledTaskBase):
-    pass
+    recurrence_interval: Optional[str] = None # e.g., 'daily', 'weekly'
 
 class ScheduledTaskUpdate(BaseModel):
     title: Optional[str] = None
