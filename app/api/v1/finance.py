@@ -45,6 +45,10 @@ async def create_expenditure(
     )
     sub = sub_res.scalars().first()
     current_plan = sub.plan_type if sub else PlanType.STARTER
+    
+    # Admins and Superusers bypass subscription locks
+    if current_user.role == "ADMIN" or getattr(current_user, "is_superuser", False):
+        current_plan = PlanType.ENTERPRISE
 
     WHITELIST_CATEGORIES = ['feed', 'chicks', 'medicine', 'utilities', 'other']
     if current_plan == PlanType.STARTER and item_in.category.lower() not in WHITELIST_CATEGORIES:
@@ -163,6 +167,10 @@ async def read_expenditures(
     sub = sub_res.scalars().first()
     current_plan = sub.plan_type if sub else PlanType.STARTER
 
+    # Admins and Superusers bypass subscription locks
+    if current_user.role == "ADMIN" or getattr(current_user, "is_superuser", False):
+        current_plan = PlanType.ENTERPRISE
+
     stmt = select(Expenditure).filter(Expenditure.farmer_id == current_user.id)
     if flock_id:
         stmt = stmt.filter(Expenditure.flock_id == flock_id)
@@ -199,6 +207,10 @@ async def update_expenditure(
         )
         sub = sub_res.scalars().first()
         current_plan = sub.plan_type if sub else PlanType.STARTER
+
+        # Admins and Superusers bypass subscription locks
+        if current_user.role == "ADMIN" or getattr(current_user, "is_superuser", False):
+            current_plan = PlanType.ENTERPRISE
 
         WHITELIST_CATEGORIES = ['feed', 'chicks', 'medicine', 'utilities', 'other']
         if current_plan == PlanType.STARTER and item_in.category.lower() not in WHITELIST_CATEGORIES:
@@ -317,6 +329,10 @@ async def read_sales(
     )
     sub = sub_res.scalars().first()
     current_plan = sub.plan_type if sub else PlanType.STARTER
+
+    # Admins and Superusers bypass subscription locks
+    if current_user.role == "ADMIN" or getattr(current_user, "is_superuser", False):
+        current_plan = PlanType.ENTERPRISE
 
     stmt = select(Sale).filter(Sale.farmer_id == current_user.id)
     if flock_id:

@@ -44,6 +44,10 @@ async def create_flock(
 
     current_plan = sub.plan_type if sub else PlanType.STARTER
 
+    # Admins and Superusers bypass subscription locks
+    if current_user.role == "ADMIN" or getattr(current_user, "is_superuser", False):
+        current_plan = PlanType.ENTERPRISE
+
     # 2. Check limits if on STARTER
     if current_plan == PlanType.STARTER:
         # Check total birds count in active flocks

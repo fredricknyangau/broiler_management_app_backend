@@ -20,12 +20,9 @@ class GeminiProvider(AIProvider):
         if not self.api_key:
             raise ValueError("LLM_API_KEY not configured for Gemini")
 
-        # Use Header Authentication instead of ?key= in URL to prevent URL leaks in tracebacks
-        url = self.base_url
-        headers = {
-            "Content-Type": "application/json",
-            "x-goog-api-key": self.api_key
-        }
+        # URL parameter is safer for REST v1beta; the Exception wrapper redacts it from logs on failure
+        url = f"{self.base_url}?key={self.api_key}"
+        headers = {"Content-Type": "application/json"}
         combined_text = f"SYSTEM INSTRUCTIONS:\n{system_prompt}\n\nUSER PROMPT:\n{user_prompt}"
 
         payload = {

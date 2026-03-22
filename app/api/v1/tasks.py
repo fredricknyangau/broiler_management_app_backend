@@ -41,6 +41,10 @@ async def create_task(
         sub = sub_res.scalars().first()
         current_plan = sub.plan_type if sub else PlanType.STARTER
 
+        # Admins and Superusers bypass subscription locks
+        if current_user.role == "ADMIN" or getattr(current_user, "is_superuser", False):
+            current_plan = PlanType.ENTERPRISE
+
         if current_plan == PlanType.STARTER:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
