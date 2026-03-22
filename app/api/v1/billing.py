@@ -217,19 +217,27 @@ async def get_my_subscription(
     """
     Get the current active subscription for the user.
     """
-    # Find the latest active subscription
-    result = await db.execute(
-        select(Subscription).filter(
-            Subscription.user_id == current_user.id,
-            Subscription.status == SubscriptionStatus.ACTIVE
-        ).order_by(Subscription.created_at.desc())
-    )
-    sub = result.scalars().first()
+    from app.api.deps import _get_effective_subscription
+
+    # 1. Admins and Superusers get auto-Enterprise
+    if current_user.role == "ADMIN" or current_user.is_superuser:
+        return SubscriptionResponse(
+            id=current_user.id,
+            user_id=current_user.id,
+            plan_type=PlanType.ENTERPRISE,
+            status=SubscriptionStatus.ACTIVE,
+            start_date=None,
+            end_date=None,
+            mpesa_reference=None
+        )
+
+    # 2. Lookup Inherited/Effective Subscription
+    sub = await _get_effective_subscription(db, current_user)
 
     if not sub:
         # Return a dummy starter plan if none found
         return SubscriptionResponse(
-            id=current_user.id, # Hacky ID
+            id=current_user.id,
             user_id=current_user.id,
             plan_type=PlanType.STARTER,
             status=SubscriptionStatus.ACTIVE,
