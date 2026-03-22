@@ -12,6 +12,6 @@ if [ "$DEBUG" = "True" ] || [ "$DEBUG" = "true" ]; then
 else
     echo "Starting application in PRODUCTION mode (gunicorn)..."
     # Gunicorn with Uvicorn workers
-    # Adjust workers based on CPU cores if needed, but 4 is a safe default for now
-    exec gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-8000}
+    # Adjust workers based on CPU cores if needed, but 1 is safe for single-core or limited DB pool tiers
+    exec gunicorn app.main:app -w 1 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-8000}
 fi
