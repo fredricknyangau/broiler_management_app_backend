@@ -39,8 +39,10 @@ async def get_current_user(
         raise credentials_exception
     
     # Async query
+    print(f"DEBUG: get_current_user executing SELECT for user_id={user_id}")
     result = await db.execute(select(User).filter(User.id == UUID(user_id)))
     user = result.scalars().first()
+    print(f"DEBUG: get_current_user fetch complete: {user}")
     
     if user is None:
         raise credentials_exception
@@ -122,10 +124,12 @@ async def _get_effective_subscription(db: AsyncSession, user: User) -> Subscript
     Looks up an active subscription for the user directly, or via Farm membership
     if they are a Manager/Viewer on a Farm owned by a subscriber.
     """
+    print(f"DEBUG: _get_effective_subscription START for user={user.id}")
     from app.db.models.farm_member import FarmMember
     from app.db.models.farm import Farm
 
     # 1. Direct Ownership Lookup (e.g. Farmer)
+    print("DEBUG: Checking direct subscription...")
     result = await db.execute(
         select(Subscription).filter(
             Subscription.user_id == user.id,
@@ -133,26 +137,34 @@ async def _get_effective_subscription(db: AsyncSession, user: User) -> Subscript
         )
     )
     sub = result.scalars().first()
+    print(f"DEBUG: Direct sub check result: {sub}")
     if sub:
         return sub
 
     # 2. Member Inheritance Lookup (e.g. Manager/Viewer)
+    print("DEBUG: Checking FarmMember inheritance...")
     member_result = await db.execute(
         select(FarmMember).where(FarmMember.user_id == user.id)
     )
     membership = member_result.scalars().first()
+    print(f"DEBUG: Membership found: {membership}")
     if membership:
+        print(f"DEBUG: Found FarmMember, checking Farm owned_id={membership.farm_id}")
         farm_result = await db.execute(select(Farm).where(Farm.id == membership.farm_id))
         farm = farm_result.scalar_one_or_none()
         if farm:
+            print(f"DEBUG: Found Farm, checking Owner={farm.owner_id} subscription...")
             owner_sub_result = await db.execute(
                 select(Subscription).filter(
                     Subscription.user_id == farm.owner_id,
                     Subscription.status == SubscriptionStatus.ACTIVE
                 )
             )
-            return owner_sub_result.scalars().first()
+            owner_sub = owner_sub_result.scalars().first()
+            print(f"DEBUG: Owner subscription: {owner_sub}")
+            return owner_sub
 
+    print("DEBUG: No effective subscription found.")
     return None
 
 async def check_professional_subscription(
