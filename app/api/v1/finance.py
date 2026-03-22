@@ -8,7 +8,7 @@ from datetime import date
 import csv
 import io
 
-from app.api.deps import get_db, get_current_user, set_tenant_context, check_professional_subscription
+from app.api.deps import get_db, get_current_user, set_tenant_context, check_professional_subscription, get_current_non_viewer
 from app.db.models.finance import Expenditure, Sale
 from app.db.models.user import User
 from app.db.models.inventory import InventoryItem
@@ -29,7 +29,7 @@ async def create_expenditure(
     item_in: ExpenditureCreate,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """
     Record a new expense.
@@ -178,7 +178,7 @@ async def update_expenditure(
     item_id: UUID,
     item_in: ExpenditureUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """
     Update an expense.
@@ -263,7 +263,7 @@ async def update_expenditure(
 async def delete_expenditure(
     item_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """
     Delete an expenditure.
@@ -283,7 +283,7 @@ async def delete_expenditure(
 async def create_sale(
     item_in: SaleCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """
     Record a new sale.
@@ -333,7 +333,7 @@ async def update_sale(
     item_id: UUID,
     item_in: SaleUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """
     Update a sale record.
@@ -356,7 +356,7 @@ async def update_sale(
 async def delete_sale(
     item_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """
     Delete a sale record.

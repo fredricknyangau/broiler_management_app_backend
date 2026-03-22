@@ -5,7 +5,7 @@ from typing import List
 from uuid import UUID
 from datetime import date
 
-from app.api.deps import get_db, get_current_user, set_tenant_context, check_professional_subscription
+from app.api.deps import get_db, get_current_user, set_tenant_context, check_professional_subscription, get_current_non_viewer
 from app.db.models.inventory import InventoryItem
 from app.db.models.user import User
 from app.db.models.inventory_history import InventoryHistory, InventoryAction
@@ -18,7 +18,7 @@ router = APIRouter(dependencies=[Depends(check_professional_subscription)])
 async def create_inventory_item(
     item_in: InventoryItemCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """
     Add a new item to inventory.
@@ -67,7 +67,7 @@ async def update_inventory_item(
     item_in: InventoryItemUpdate,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """
     Update stock levels or details.
@@ -117,7 +117,7 @@ async def update_inventory_item(
 async def delete_inventory_item(
     item_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """
     Delete an inventory item.

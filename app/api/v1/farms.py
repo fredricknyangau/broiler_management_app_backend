@@ -67,3 +67,37 @@ async def update_farm(
     await db.commit()
     await db.refresh(farm)
     return farm
+
+@router.post("/{farm_id}/members", response_model=dict, status_code=status.HTTP_201_CREATED)
+async def add_farm_member(
+    farm_id: UUID,
+    user_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Add a manager or viewer (User) to a specific Farm Profile.
+    Only the Farm Owner or Admin can manage memberships.
+    """
+    from app.db.models.farm_member import FarmMember
+
+    # 1. Verify Farm Ownership
+    result = await db.execute(select(Farm).where(Farm.id == farm_id))
+    farm = result.scalar_one_or_none()
+    
+    if not farm:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Farm not found")
+        
+    if farm.owner_id != current_user.id and current_user.role != "ADMIN":
+         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the Farm Owner can manage members.")
+
+    # 2. Add Link
+    # Check if already a member to prevent duplicates
+    exists = await db.execute(select(FarmMember).where(FarmMember.farm_id == farm_id, FarmMember.user_id == user_id))
+    if exists.scalar_one_or_none():
+         return {"status": "success", "message": "Already a member"}
+
+    member = FarmMember(farm_id=farm_id, user_id=user_id)
+    db.add(member)
+    await db.commit()
+    return {"status": "success", "message": "Member added to farm"}

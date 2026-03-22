@@ -140,6 +140,7 @@ class AdminStats(BaseModel):
     active_subscriptions: int
     total_revenue_est: float
     total_flocks: int
+    active_flocks: int = 0
     users_growth_percent: float = 0.0
     revenue_growth_percent: float = 0.0
     users_by_plan: Dict[str, int] = {}

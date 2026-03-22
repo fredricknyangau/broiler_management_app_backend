@@ -83,6 +83,12 @@ async def subscribe(
     """
     Initiates a subscription using M-Pesa STK Push.
     """
+    if current_user.role not in ["FARMER", "ADMIN"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only Farm Owners can manage subscriptions."
+        )
+
     # 1. Determine Amount
     amount = 0
     if payload.plan_type == "PROFESSIONAL":

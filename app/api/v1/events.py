@@ -5,7 +5,7 @@ from datetime import date
 from typing import List, Optional
 from uuid import UUID
 
-from app.api.deps import get_db, get_current_user, set_tenant_context
+from app.api.deps import get_db, get_current_user, set_tenant_context, get_current_non_viewer
 from app.db.models.user import User
 from app.db.models.flock import Flock
 from app.db.models.events import (
@@ -53,7 +53,7 @@ async def create_mortality_event(
     flock_id: UUID,  # Required query param
     event_date: date = None, # Optional query param
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """Create mortality event."""
     # Verify flock ownership
@@ -83,7 +83,7 @@ async def update_mortality_event(
     event_id: UUID,
     event_in: MortalityEventUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """Update mortality event."""
     stmt = select(MortalityEvent).join(Flock).filter(
@@ -109,7 +109,7 @@ async def update_mortality_event(
 async def delete_mortality_event(
     event_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """Delete mortality event."""
     stmt = select(MortalityEvent).join(Flock).filter(
@@ -149,7 +149,7 @@ async def create_feed_event(
     flock_id: UUID,
     event_date: date = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """Create feed event."""
     # Verify flock ownership
@@ -179,7 +179,7 @@ async def update_feed_event(
     event_id: UUID,
     event_in: FeedConsumptionEventUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """Update feed event."""
     stmt = select(FeedConsumptionEvent).join(Flock).filter(
@@ -205,7 +205,7 @@ async def update_feed_event(
 async def delete_feed_event(
     event_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """Delete feed event."""
     stmt = select(FeedConsumptionEvent).join(Flock).filter(
@@ -245,7 +245,7 @@ async def create_vaccination_event(
     flock_id: UUID,
     event_date: date = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """Create vaccination event."""
     # Verify flock ownership
@@ -275,7 +275,7 @@ async def update_vaccination_event(
     event_id: UUID,
     event_in: VaccinationEventUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """Update vaccination event."""
     stmt = select(VaccinationEvent).join(Flock).filter(
@@ -301,7 +301,7 @@ async def update_vaccination_event(
 async def delete_vaccination_event(
     event_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """Delete vaccination event."""
     stmt = select(VaccinationEvent).join(Flock).filter(
@@ -341,7 +341,7 @@ async def create_weight_event(
     flock_id: UUID,
     event_date: date = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """Create weight event."""
     # Verify flock ownership
@@ -372,7 +372,7 @@ async def update_weight_event(
     event_id: UUID,
     event_in: WeightMeasurementEventUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """Update weight event."""
     stmt = select(WeightMeasurementEvent).join(Flock).filter(
@@ -398,7 +398,7 @@ async def update_weight_event(
 async def delete_weight_event(
     event_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """Delete weight event."""
     stmt = select(WeightMeasurementEvent).join(Flock).filter(
