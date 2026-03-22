@@ -164,6 +164,10 @@ async def check_professional_subscription(
     Throws 403 Forbidden if they are on the Starter tier.
     Supports Farm membership inheritance.
     """
+    # Admins / Superusers bypass subscription locks
+    if current_user.role == UserRole.ADMIN or current_user.is_superuser:
+        return True
+
     sub = await _get_effective_subscription(db, current_user)
     
     if not sub or sub.plan_type == PlanType.STARTER:
@@ -183,6 +187,10 @@ async def check_enterprise_subscription(
     Throws 403 Forbidden if they are on Starter or Professional tiers.
     Supports Farm membership inheritance.
     """
+    # Admins / Superusers bypass subscription locks
+    if current_user.role == UserRole.ADMIN or current_user.is_superuser:
+        return True
+
     sub = await _get_effective_subscription(db, current_user)
     
     if not sub or sub.plan_type != PlanType.ENTERPRISE:
