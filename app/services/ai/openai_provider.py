@@ -35,9 +35,16 @@ class OpenAIProvider(AIProvider):
         }
 
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(self.base_url, headers=headers, json=payload)
-            response.raise_for_status()
-            
+            try:
+                response = await client.post(self.base_url, headers=headers, json=payload)
+                response.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                logger.error(f"OpenAI API Http Error: {e.response.status_code}")
+                raise ValueError(f"OpenAI API Error: HTTP {e.response.status_code}") from None
+            except Exception as e:
+                logger.error(f"OpenAI API Connection failed: {str(e)}")
+                raise ValueError("OpenAI API connection failed") from None
+                
             data = response.json()
             raw_content = data["choices"][0]["message"]["content"]
             

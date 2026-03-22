@@ -20,8 +20,12 @@ class GeminiProvider(AIProvider):
         if not self.api_key:
             raise ValueError("LLM_API_KEY not configured for Gemini")
 
-        url = f"{self.base_url}?key={self.api_key}"
-        headers = {"Content-Type": "application/json"}
+        # Use Header Authentication instead of ?key= in URL to prevent URL leaks in tracebacks
+        url = self.base_url
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": self.api_key
+        }
         combined_text = f"SYSTEM INSTRUCTIONS:\n{system_prompt}\n\nUSER PROMPT:\n{user_prompt}"
 
         payload = {
@@ -38,8 +42,16 @@ class GeminiProvider(AIProvider):
         }
 
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(url, headers=headers, json=payload)
-            response.raise_for_status()
+            try:
+                response = await client.post(url, headers=headers, json=payload)
+                response.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                logger.error(f"Gemini API Http Error: {e.response.status_code}")
+                raise ValueError(f"Gemini API Error: HTTP {e.response.status_code}") from None
+            except Exception as e:
+                logger.error(f"Gemini API Connection failed: {str(e)}")
+                raise ValueError("Gemini API connection failed") from None
+
             data = response.json()
             
             try:
