@@ -13,23 +13,31 @@ class GeminiProvider(AIProvider):
         self.model = getattr(settings, "GEMINI_MODEL", "gemini-1.5-flash")
         self.base_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
 
-    async def generate_structured_response(self, system_prompt: str, user_prompt: str, json_schema: Dict[str, Any]) -> Dict[str, Any]:
+    async def generate_structured_response(self, system_prompt: str, user_prompt: str, json_schema: Dict[str, Any], image_base64: str = None) -> Dict[str, Any]:
         """
         Hit Google Gemini 1.5 using manual HTTP.
         """
         if not self.api_key:
             raise ValueError("LLM_API_KEY not configured for Gemini")
 
-        # URL parameter is safer for REST v1beta; the Exception wrapper redacts it from logs on failure
         url = f"{self.base_url}?key={self.api_key}"
         headers = {"Content-Type": "application/json"}
         combined_text = f"SYSTEM INSTRUCTIONS:\n{system_prompt}\n\nUSER PROMPT:\n{user_prompt}"
+
+        parts = [{"text": combined_text}]
+        if image_base64:
+            parts.append({
+                "inlineData": {
+                    "mimeType": "image/jpeg", # Default to jpeg
+                    "data": image_base64
+                }
+            })
 
         payload = {
             "contents": [
                 {
                     "role": "user",
-                    "parts": [{"text": combined_text}]
+                    "parts": parts
                 }
             ],
             "generationConfig": {

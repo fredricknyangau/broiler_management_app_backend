@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from app.config import settings
-from app.api.v1 import auth, flocks, daily_checks, finance, inventory, biosecurity, alerts, events, health, market, admin, data, people, analytics, billing, audit, resources, settings as settings_router, tasks, farms, ai
+from app.api.v1 import auth, flocks, daily_checks, finance, inventory, biosecurity, alerts, api_keys, events, health, market, admin, data, people, analytics, billing, audit, resources, settings as settings_router, tasks, farms, ai
 import structlog
 from app.core.logging import setup_logging
 
@@ -52,6 +52,7 @@ app.include_router(finance.router, prefix=f"{settings.API_V1_PREFIX}/finance", t
 app.include_router(inventory.router, prefix=f"{settings.API_V1_PREFIX}/inventory", tags=["Inventory"])
 app.include_router(biosecurity.router, prefix=f"{settings.API_V1_PREFIX}/biosecurity", tags=["Biosecurity"])
 app.include_router(alerts.router, prefix=f"{settings.API_V1_PREFIX}/alerts", tags=["Alerts"])
+app.include_router(api_keys.router, prefix=f"{settings.API_V1_PREFIX}/api-keys", tags=["API Keys"])
 app.include_router(events.router, prefix=f"{settings.API_V1_PREFIX}/events", tags=["Events"])
 app.include_router(health.router, prefix=f"{settings.API_V1_PREFIX}/health", tags=["Health"])
 app.include_router(market.router, prefix=f"{settings.API_V1_PREFIX}/market", tags=["Market"])

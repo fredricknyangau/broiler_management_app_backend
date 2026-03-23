@@ -52,6 +52,7 @@ class Sale(Base, UUIDMixin, TimestampMixin):
     buyer_phone = Column(String(50), nullable=True)
     notes = Column(Text, nullable=True)
     mpesa_transaction_id = Column(String(50), nullable=True)
+    checkout_request_id = Column(String(50), nullable=True)
     average_weight_grams = Column(DECIMAL(10, 2), nullable=True, doc="Avg weight of birds sold")
     
     # New Foreign Key

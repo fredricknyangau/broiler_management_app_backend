@@ -1,76 +1,83 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from typing import List
 from uuid import UUID
-from datetime import datetime
 
-from app.api.deps import get_db, get_current_user, set_tenant_context, check_professional_subscription
-from app.db.models.alert import Alert
+from app.api.deps import get_db, get_current_user
 from app.db.models.user import User
-from app.db.models.flock import Flock
-from app.schemas.alert import AlertResponse, AlertUpdate
+from app.db.models.alert import Alert
+from pydantic import BaseModel
 
-router = APIRouter(dependencies=[Depends(check_professional_subscription)])
+router = APIRouter()
 
-@router.get("/", response_model=List[AlertResponse])
-async def read_alerts(
-    skip: int = 0,
-    limit: int = 100,
-    status: str = None,
-    flock_id: UUID = None,
+@router.get("/")
+async def get_alerts(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Retrieve alerts.
-    
-    - **status**: Filter by status (active, acknowledged, resolved)
-    - **flock_id**: Filter by specific flock
+    Get alerts for current user. Admins get all.
     """
-    stmt = select(Alert).join(Flock).filter(Flock.farmer_id == current_user.id)
-    
-    if status:
-        stmt = stmt.filter(Alert.status == status)
-    if flock_id:
-        stmt = stmt.filter(Alert.flock_id == flock_id)
+    if current_user.role == "ADMIN":
+        query = select(Alert)
+    else:
+        query = select(Alert).filter(
+            or_(
+                Alert.user_id == current_user.id,
+                Alert.user_id == None
+            )
+        )
         
-    result = await db.execute(stmt.order_by(Alert.triggered_at.desc()).offset(skip).limit(limit))
+    result = await db.execute(query.order_by(Alert.triggered_at.desc()))
     return result.scalars().all()
 
-@router.put("/{alert_id}", response_model=AlertResponse)
-async def update_alert(
+@router.put("/{alert_id}/acknowledge")
+async def acknowledge_alert(
     alert_id: UUID,
-    alert_update: AlertUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Update alert status.
-    
-    - Automatically sets `acknowledged_at` or `resolved_at` timestamps based on status change.
+    Mark alert as acknowledged.
     """
-    stmt = select(Alert).join(Flock).filter(
-        Alert.id == alert_id,
-        Flock.farmer_id == current_user.id
-    )
-    result = await db.execute(stmt)
+    result = await db.execute(select(Alert).filter(Alert.id == alert_id))
     alert = result.scalars().first()
-    
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
-    
-    update_data = alert_update.model_dump(exclude_unset=True)
-    if 'status' in update_data:
-        if update_data['status'] == 'acknowledged' and not alert.acknowledged_at:
-            alert.acknowledged_at = datetime.utcnow()
-        elif update_data['status'] == 'resolved' and not alert.resolved_at:
-            alert.resolved_at = datetime.utcnow()
-            
-    for field, value in update_data.items():
-        setattr(alert, field, value)
         
-    # db.add(alert)
+    if current_user.role != "ADMIN" and str(alert.user_id) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Not authorized to acknowledge this alert")
+        
+    alert.status = "acknowledged"
     await db.commit()
-    await db.refresh(alert)
-    return alert
+    return {"status": "success"}
+
+class BroadcastCreate(BaseModel):
+    title: str
+    message: str
+    severity: str = "info" # low, medium, high, critical
+
+@router.post("/broadcast")
+async def broadcast_alert(
+    payload: BroadcastCreate,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_user) # Assuming Admin verify later
+):
+    """
+    Broadcast a global system alert/announcement to all users. (Admin only)
+    """
+    if current_admin.role != "ADMIN":
+        raise HTTPException(status_code=403, detail="Only Admins can broadcast alerts")
+
+    from app.db.models.alert import Alert as AlertModel # fix circular reference if any
+    alert = Alert(
+        title=payload.title,
+        message=payload.message,
+        alert_type="broadcast",
+        severity=payload.severity,
+        user_id=None
+    )
+    db.add(alert)
+    await db.commit()
+    return {"status": "success", "alert_id": alert.id}

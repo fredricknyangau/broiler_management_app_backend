@@ -8,7 +8,7 @@ class AIProvider(ABC):
     """
 
     @abstractmethod
-    async def generate_structured_response(self, system_prompt: str, user_prompt: str, json_schema: Dict[str, Any]) -> Dict[str, Any]:
+    async def generate_structured_response(self, system_prompt: str, user_prompt: str, json_schema: Dict[str, Any], image_base64: str = None) -> Dict[str, Any]:
         """
         Request a structured JSON response from the LLM provider.
         """

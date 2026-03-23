@@ -10,6 +10,7 @@ from app.db.models.events import (
     WeightMeasurementEvent
 )
 from app.db.models.alert import Alert
+from app.db.models.api_key import ApiKey
 from app.db.models.finance import Expenditure, Sale
 from app.db.models.inventory import InventoryItem
 from app.db.models.biosecurity import BiosecurityCheck
@@ -44,5 +45,6 @@ __all__ = [
     "UserSetting",
     "ScheduledTask",
     "AuditLog",
-    "FarmMember"
+    "FarmMember",
+    "ApiKey"
 ]

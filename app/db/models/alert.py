@@ -12,6 +12,7 @@ class Alert(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "alerts"
 
     flock_id = Column(UUID(as_uuid=True), ForeignKey("flocks.id", ondelete="CASCADE"), nullable=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, doc="Target user for Admin broadcasts")
     alert_type = Column(String(100), nullable=False, doc="Type: disease_risk, low_feed, weight_deviation...")
     severity = Column(String(20), nullable=False, doc="Severity: low, medium, high, critical")
     title = Column(String(255), nullable=False)

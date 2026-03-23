@@ -53,6 +53,7 @@ class DiseaseRiskRequest(BaseModel):
     symptoms: List[str] = Field(..., description="List of observed symptoms (e.g., coughing, lethargy)")
     recent_vaccinations: List[str] = Field(..., description="List of recorded vaccinations")
     mortality_alert_level: str = Field("NORMAL", description="Existing Mortality threat level context")
+    image_base64: Optional[str] = Field(None, description="Base64 encoded image of droppings or eyes")
 
 class DiseaseRiskResponse(BaseModel):
     suspected_conditions: List[str] = Field(..., description="Potential diseases suspected by AI patterns")

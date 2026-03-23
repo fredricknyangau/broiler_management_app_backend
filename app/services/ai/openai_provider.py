@@ -12,7 +12,7 @@ class OpenAIProvider(AIProvider):
         self.api_key = api_key or getattr(settings, "LLM_API_KEY", "")
         self.base_url = "https://api.openai.com/v1/chat/completions"
 
-    async def generate_structured_response(self, system_prompt: str, user_prompt: str, json_schema: Dict[str, Any]) -> Dict[str, Any]:
+    async def generate_structured_response(self, system_prompt: str, user_prompt: str, json_schema: Dict[str, Any], image_base64: str = None) -> Dict[str, Any]:
         """
         Hit OpenAI and force the JSON parser mapping to our payload constraints.
         """

@@ -171,7 +171,7 @@ Diagnostics:
     system_prompt += f"\n\nEXPECTED JSON SCHEMA:\n{json.dumps(expected_schema, indent=2)}"
 
     try:
-        raw_json = await provider.generate_structured_response(system_prompt, user_prompt, expected_schema)
+        raw_json = await provider.generate_structured_response(system_prompt, user_prompt, expected_schema, image_base64=payload.image_base64)
         return DiseaseRiskResponse(**raw_json)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

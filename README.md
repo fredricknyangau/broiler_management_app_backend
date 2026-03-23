@@ -118,6 +118,3 @@ docker run -d \
   broiler-backend
 ```
 # deployed via Woodpecker CI
-# deployed via Woodpecker CI
-.
-.

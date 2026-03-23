@@ -144,6 +144,7 @@ class AdminStats(BaseModel):
     users_growth_percent: float = 0.0
     revenue_growth_percent: float = 0.0
     users_by_plan: Dict[str, int] = {}
+    mrr: float = 0.0
 
 class AdminTransaction(BaseModel):
     id: UUID
@@ -156,6 +157,56 @@ class AdminTransaction(BaseModel):
 
 class PlanUpdate(BaseModel):
     plan_type: PlanType
+
+@router.put("/users/{user_id}/subscription", response_model=SubscriptionResponse)
+async def update_user_subscription(
+    user_id: UUID,
+    plan_update: PlanUpdate,
+    current_admin: User = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Override or create a user's active subscription (Admin only).
+    """
+    user_res = await db.execute(select(User).filter(User.id == user_id))
+    user = user_res.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    result = await db.execute(
+        select(Subscription).filter(
+            Subscription.user_id == user_id,
+            Subscription.status == SubscriptionStatus.ACTIVE
+        ).order_by(Subscription.created_at.desc())
+    )
+    sub = result.scalars().first()
+
+    now = datetime.now()
+    if sub:
+        sub.plan_type = plan_update.plan_type
+        sub.updated_at = now
+    else:
+        sub = Subscription(
+            user_id=user_id,
+            plan_type=plan_update.plan_type,
+            status=SubscriptionStatus.ACTIVE,
+            start_date=now,
+            end_date=now + timedelta(days=365)
+        )
+        db.add(sub)
+
+    await db.commit()
+    await db.refresh(sub)
+
+    await log_action(
+        db=db,
+        action="UPDATE_SUBSCRIPTION",
+        user_id=current_admin.id,
+        resource_type="Subscription",
+        details=f"Updated user {user_id} plan to {plan_update.plan_type}"
+    )
+
+    return sub
 
 @router.get("/stats", response_model=AdminStats)
 async def get_system_stats(
@@ -177,14 +228,18 @@ async def get_system_stats(
     
     users_by_plan = {}
     revenue = 0.0
+    mrr = 0.0
+    price_map = {"STARTER": 0.0, "PROFESSIONAL": 3500.0, "ENTERPRISE": 10000.0}
+    
     for sub in active_subs:
         try:
-            if sub.amount:
+            if getattr(sub, 'amount', None):
                 revenue += float(sub.amount)
         except:
             pass
-        plan = str(sub.plan_type)
+        plan = str(sub.plan_type).upper()
         users_by_plan[plan] = users_by_plan.get(plan, 0) + 1
+        mrr += price_map.get(plan, 0.0)
             
     # Calculate M-o-M Growth
     now = datetime.now()
@@ -216,7 +271,8 @@ async def get_system_stats(
         active_flocks=active_flocks.scalar() or 0,
         users_growth_percent=round(users_growth, 2),
         revenue_growth_percent=round(rev_growth, 2),
-        users_by_plan=users_by_plan
+        users_by_plan=users_by_plan,
+        mrr=mrr
     )
 
 @router.get("/transactions", response_model=PaginatedResponse[AdminTransaction])
@@ -509,4 +565,46 @@ async def get_audit_logs(
         total_pages=(total_count + limit - 1) // limit if limit > 0 else 1,
         current_page=(skip // limit) + 1 if limit > 0 else 1
     )
+
+
+class AggregateAnalytics(BaseModel):
+    date: str
+    total_revenue: float = 0.0
+    total_expenses: float = 0.0
+    total_birds: int = 0
+
+@router.get("/analytics/aggregate", response_model=List[AggregateAnalytics])
+async def get_aggregate_analytics(
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """
+    Get system-wide aggregate financial and flock metrics grouped by date (last 6 months).
+    """
+    today = datetime.now().date()
+    start_date = today - timedelta(days=180)
+
+    sales_stmt = select(Sale.date, func.sum(Sale.amount).label("amount")).filter(Sale.date >= start_date).group_by(Sale.date)
+    sales_res = await db.execute(sales_stmt)
+    sales = {r.date: r.amount for r in sales_res.all()}
+
+    expenses_stmt = select(Expenditure.date, func.sum(Expenditure.amount).label("amount")).filter(Expenditure.date >= start_date).group_by(Expenditure.date)
+    expenses_res = await db.execute(expenses_stmt)
+    expenses = {r.date: r.amount for r in expenses_res.all()}
+
+    flocks_stmt = select(Flock.start_date, func.sum(Flock.initial_count).label("birds")).filter(Flock.start_date >= start_date).group_by(Flock.start_date)
+    flocks_res = await db.execute(flocks_stmt)
+    flocks = {r.start_date: r.birds for r in flocks_res.all()}
+
+    all_dates = sorted(set(list(sales.keys()) + list(expenses.keys()) + list(flocks.keys())))
+    result = []
+    for d in all_dates:
+        result.append(AggregateAnalytics(
+            date=d.strftime("%Y-%m-%d"),
+            total_revenue=float(sales.get(d, 0)),
+            total_expenses=float(expenses.get(d, 0)),
+            total_birds=int(flocks.get(d, 0))
+        ))
+
+    return result
 

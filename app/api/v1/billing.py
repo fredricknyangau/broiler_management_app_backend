@@ -176,33 +176,57 @@ async def mpesa_callback(request: Request, db: AsyncSession = Depends(get_db)):
         ))
         subscription = result.scalars().first()
 
-        if not subscription:
-            print(f"Subscription not found for CheckoutRequestID: {checkout_request_id}")
-            return {"status": "ignored", "reason": "Subscription not found"}
+        if subscription:
+            if result_code == 0:
+                # Payment Successful
+                print(f"Activating subscription for reference: {subscription.mpesa_reference}")
+                subscription.status = SubscriptionStatus.ACTIVE
+                subscription.start_date = datetime.now()
+                
+                # Re-infer duration (logic duplicated from simulate)
+                try:
+                    amt = float(subscription.amount)
+                    if amt < 2000: 
+                         subscription.end_date = datetime.now() + timedelta(days=30)
+                    else:
+                         subscription.end_date = datetime.now() + timedelta(days=365)
+                except:
+                    subscription.end_date = datetime.now() + timedelta(days=30)
+            else:
+                # Payment Failed / Cancelled
+                print(f"Payment failed for reference {subscription.mpesa_reference}: {result_desc}")
+                subscription.status = SubscriptionStatus.CANCELLED
+                # Optionally store result_desc
 
-        if result_code == 0:
-            # Payment Successful
-            print(f"Activating subscription for reference: {subscription.mpesa_reference}")
-            subscription.status = SubscriptionStatus.ACTIVE
-            subscription.start_date = datetime.now()
+            await db.commit()
+            return {"status": "processed", "result_code": result_code}
+
+        # If not subscription, try Sale lookup
+        from app.db.models.finance import Sale
+        result_sale = await db.execute(select(Sale).filter(
+            Sale.checkout_request_id == checkout_request_id
+        ))
+        sale = result_sale.scalars().first()
+
+        if sale:
+            if result_code == 0:
+                # Payment Successful for Sale
+                print(f"Verifying sale for reference: {sale.id}")
+                callback_metadata = stk_callback.get('CallbackMetadata', {})
+                items = callback_metadata.get('Item', [])
+                for element in items:
+                     if element.get('Name') == 'MpesaReceiptNumber':
+                          sale.mpesa_transaction_id = element.get('Value')
+                          break
+                print(f"Sale {sale.id} verified with Transaction ID: {sale.mpesa_transaction_id}")
+            else:
+                print(f"Sale payment failed or cancelled for reference {sale.id}: {result_desc}")
             
-            # Re-infer duration (logic duplicated from simulate)
-            try:
-                amt = float(subscription.amount)
-                if amt < 2000: 
-                     subscription.end_date = datetime.now() + timedelta(days=30)
-                else:
-                     subscription.end_date = datetime.now() + timedelta(days=365)
-            except:
-                subscription.end_date = datetime.now() + timedelta(days=30)
-        else:
-            # Payment Failed / Cancelled
-            print(f"Payment failed for reference {subscription.mpesa_reference}: {result_desc}")
-            subscription.status = SubscriptionStatus.CANCELLED
-            # Optionally store result_desc
+            await db.commit()
+            return {"status": "processed", "result_code": result_code}
 
-        await db.commit()
-        return {"status": "processed", "result_code": result_code}
+        print(f"No subscription or sale found for CheckoutRequestID: {checkout_request_id}")
+        return {"status": "ignored", "reason": "No matching entity found"}
 
     except Exception as e:
         print(f"Error processing callback: {e}")

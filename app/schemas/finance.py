@@ -66,6 +66,7 @@ class SaleBase(BaseModel):
 class SaleCreate(SaleBase):
     """Schema for recording a new sale."""
     flock_id: UUID4
+    customer_id: Optional[UUID4] = None
 
 class SaleUpdate(BaseModel):
     """Schema for updating a sale."""

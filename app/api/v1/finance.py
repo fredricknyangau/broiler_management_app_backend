@@ -291,6 +291,8 @@ async def delete_expenditure(
 
 # --- Sales ---
 
+from app.services.mpesa_service import mpesa_service
+
 @router.post("/sales", response_model=SaleResponse, status_code=status.HTTP_201_CREATED)
 async def create_sale(
     item_in: SaleCreate,
@@ -302,6 +304,30 @@ async def create_sale(
     """
     item = Sale(**item_in.model_dump(), farmer_id=current_user.id)
     db.add(item)
+    await db.flush() # Flush to ensure ID is generated if needed, though UUID usually is.
+
+    if item_in.buyer_phone:
+        try:
+            # Trigger STK push
+            # mpesa_service expects phone without + prefix usually, or handles it.
+            # let's pass it along.
+            amount_float = float(item_in.total_amount)
+            # Use a reference incorporating the Sale ID
+            response = await mpesa_service.initiate_stk_push(
+                phone=item_in.buyer_phone,
+                amount=amount_float,
+                reference=f"SALE-{item.id}"
+            )
+            item.checkout_request_id = response.get('CheckoutRequestID')
+            print(f"STK Push initiated for Sale {item.id}, CheckoutRequestID: {item.checkout_request_id}")
+            
+        except Exception as e:
+            await db.rollback() # Rollback sale if STK fails to prevent inconsistent states
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail=f"Failed to initiate M-Pesa push: {str(e)}"
+            )
+
     await db.commit()
     await db.refresh(item)
     return item
