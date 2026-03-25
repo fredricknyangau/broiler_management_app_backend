@@ -101,5 +101,11 @@ class Settings(BaseSettings):
     LLM_API_KEY: Optional[str] = None
     GEMINI_MODEL: str = "gemini-1.5-flash"
 
+    # OAuth / SSO
+    GOOGLE_CLIENT_ID: Optional[str] = None       # From GCP Console
+    APPLE_CLIENT_ID: Optional[str] = None        # Apple Service ID (e.g. com.kukufiti.app)
+    APPLE_TEAM_ID: Optional[str] = None          # 10-char Apple Team ID
+    APPLE_KEY_ID: Optional[str] = None           # Key ID from Apple Developer Portal
+
 
 settings = Settings()

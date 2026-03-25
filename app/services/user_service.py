@@ -79,3 +79,32 @@ class UserService:
         await self.db.refresh(user)
         
         return user
+
+    async def get_by_phone(self, phone_number: str) -> Optional[User]:
+        """Get user by phone number"""
+        result = await self.db.execute(select(User).filter(User.phone_number == phone_number))
+        return result.scalars().first()
+
+    async def get_or_create_user_by_phone(self, phone_number: str) -> tuple[User, bool]:
+        """Get or create user by phone number (Passwordless)"""
+        user = await self.get_by_phone(phone_number)
+        if user:
+            return user, False
+            
+        # Create full skeleton account
+        user = User(
+            phone_number=phone_number,
+            is_active=True,
+            role="FARMER"
+        )
+        
+        try:
+            self.db.add(user)
+            await self.db.commit()
+            await self.db.refresh(user)
+        except Exception as e:
+            await self.db.rollback()
+            raise e
+            
+        return user, True
+

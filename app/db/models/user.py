@@ -18,8 +18,8 @@ class User(Base, UUIDMixin, TimestampMixin):
     """
     __tablename__ = "users"
 
-    email = Column(String(255), unique=True, nullable=False, index=True, doc="User's unique email address")
-    hashed_password = Column(String(255), nullable=False, doc="Bcrypt hashed password")
+    email = Column(String(255), unique=True, nullable=True, index=True, doc="User's unique email address")
+    hashed_password = Column(String(255), nullable=True, doc="Bcrypt hashed password")
     full_name = Column(String(255), doc="User's full display name")
     phone_number = Column(String(20), doc="Contact phone number")
     location = Column(String(255), doc="Farm location or user's address")

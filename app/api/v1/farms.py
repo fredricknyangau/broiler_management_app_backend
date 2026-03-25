@@ -101,3 +101,24 @@ async def add_farm_member(
     db.add(member)
     await db.commit()
     return {"status": "success", "message": "Member added to farm"}
+
+
+@router.delete("/{farm_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_farm(
+    farm_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Delete a farm profile. Only the owner can delete.
+    """
+    result = await db.execute(select(Farm).where(Farm.id == farm_id, Farm.owner_id == current_user.id))
+    farm = result.scalar_one_or_none()
+    
+    if not farm:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Farm not found or access denied")
+        
+    await db.delete(farm)
+    await db.commit()
+    return None
+

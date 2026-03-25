@@ -3,8 +3,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import timedelta
 
 from app.api.deps import get_db, get_current_user
-from app.schemas.user import UserCreate, UserLogin, UserResponse, Token, UserUpdate
+from app.schemas.user import UserCreate, UserLogin, UserResponse, Token, UserUpdate, OTPRequest, OTPVerify
 from app.services.user_service import UserService
+from app.services.otp_service import OTPService
 from app.core.security import create_access_token
 from app.config import settings
 from app.db.models.user import User
@@ -119,3 +120,249 @@ async def update_profile(
     )
     
     return updated_user
+
+
+@router.post("/send-otp")
+async def send_otp(request: OTPRequest):
+    """
+    Send a 4-digit OTP code to the provided phone number.
+    
+    For development, the code is logged and returned in the response.
+    """
+    service = OTPService()
+    code = await service.send_otp(request.phone_number)
+    
+    return {
+        "message": "OTP sent successfully",
+        "code": code  # Include for testing/debug
+    }
+
+
+@router.post("/verify-otp", response_model=Token)
+async def verify_otp(
+    request: OTPVerify,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Verify the OTP code.
+    If valid, logs the user in (creates account if new phone number).
+    """
+    otp_service = OTPService()
+    is_valid = await otp_service.verify_otp(request.phone_number, request.code)
+    
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired OTP code",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
+    user_service = UserService(db)
+    user, is_new = await user_service.get_or_create_user_by_phone(request.phone_number)
+    
+    # Create access token
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": str(user.id)},
+        expires_delta=access_token_expires
+    )
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "is_new_user": is_new
+    }
+
+
+# ─── Google SSO ────────────────────────────────────────────────────────────────
+
+class GoogleAuthRequest(BaseModel):
+    id_token: str
+
+
+from pydantic import BaseModel as _BM  # noqa: E402 (already imported above effectively)
+
+
+@router.post("/google", response_model=Token)
+async def google_sso(
+    payload: GoogleAuthRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Verify a Google ID token issued by the Google Sign-In SDK.
+    Creates the user account on first sign-in, then returns a KukuFiti JWT.
+
+    Requires GOOGLE_CLIENT_ID set in the environment.
+    """
+    if not settings.GOOGLE_CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google SSO is not configured on this server.",
+        )
+
+    import httpx
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            "https://oauth2.googleapis.com/tokeninfo",
+            params={"id_token": payload.id_token},
+        )
+
+    if resp.status_code != 200:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Google ID token.",
+        )
+
+    claims = resp.json()
+
+    # Audience check — the token must be issued for our app
+    if claims.get("aud") != settings.GOOGLE_CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google ID token audience mismatch.",
+        )
+
+    email: str | None = claims.get("email")
+    full_name: str | None = claims.get("name")
+
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google account has no email address.",
+        )
+
+    service = UserService(db)
+    user, is_new = await service.get_or_create_user_by_email(
+        email=email,
+        full_name=full_name,
+        sso_provider="google",
+    )
+
+    access_token = create_access_token(
+        data={"sub": str(user.id)},
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "is_new_user": is_new,
+    }
+
+
+# ─── Apple SSO ─────────────────────────────────────────────────────────────────
+
+class AppleAuthRequest(BaseModel):
+    identity_token: str
+    full_name: str | None = None
+
+
+@router.post("/apple", response_model=Token)
+async def apple_sso(
+    payload: AppleAuthRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Verify an Apple identity token issued by Sign in with Apple.
+    Creates the user account on first sign-in, then returns a KukuFiti JWT.
+
+    Requires APPLE_CLIENT_ID set in the environment.
+    """
+    if not settings.APPLE_CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Apple SSO is not configured on this server.",
+        )
+
+    import httpx
+    import json
+    import base64
+
+    # Fetch Apple's public JWKS
+    async with httpx.AsyncClient() as client:
+        jwks_resp = await client.get("https://appleid.apple.com/auth/keys")
+
+    if jwks_resp.status_code != 200:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not fetch Apple public keys.",
+        )
+
+    # Decode the JWT header to find the matching key id
+    try:
+        header_segment = payload.identity_token.split(".")[0]
+        # Pad base64 string
+        padded = header_segment + "=" * (4 - len(header_segment) % 4)
+        header = json.loads(base64.urlsafe_b64decode(padded))
+        kid = header.get("kid")
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Malformed Apple identity token.",
+        )
+
+    jwks = jwks_resp.json().get("keys", [])
+    matching_key = next((k for k in jwks if k.get("kid") == kid), None)
+
+    if not matching_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Apple public key not found for this token.",
+        )
+
+    # Verify the token claims using PyJWT (already in the project via python-jose)
+    try:
+        from jose import jwt as jose_jwt, JWTError
+        from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicNumbers
+        from cryptography.hazmat.backends import default_backend
+        import struct
+
+        def _base64url_to_int(val: str) -> int:
+            padded = val + "=" * (4 - len(val) % 4)
+            data = base64.urlsafe_b64decode(padded)
+            return int.from_bytes(data, "big")
+
+        public_numbers = RSAPublicNumbers(
+            e=_base64url_to_int(matching_key["e"]),
+            n=_base64url_to_int(matching_key["n"]),
+        )
+        public_key = public_numbers.public_key(default_backend())
+
+        claims = jose_jwt.decode(
+            payload.identity_token,
+            public_key,
+            algorithms=["RS256"],
+            audience=settings.APPLE_CLIENT_ID,
+            issuer="https://appleid.apple.com",
+        )
+    except JWTError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Apple identity token verification failed: {exc}",
+        )
+
+    email: str | None = claims.get("email")
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Apple account has no email address.",
+        )
+
+    service = UserService(db)
+    user, is_new = await service.get_or_create_user_by_email(
+        email=email,
+        full_name=payload.full_name,
+        sso_provider="apple",
+    )
+
+    access_token = create_access_token(
+        data={"sub": str(user.id)},
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "is_new_user": is_new,
+    }

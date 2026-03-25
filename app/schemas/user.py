@@ -5,7 +5,7 @@ from datetime import datetime
 
 class UserBase(BaseModel):
     """Base fields for User model."""
-    email: EmailStr
+    email: Optional[EmailStr] = None
     full_name: Optional[str] = None
     phone_number: Optional[str] = None
     location: Optional[str] = None
@@ -17,7 +17,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     """Schema for user registration."""
-    password: str = Field(..., min_length=8, description="Password must be at least 8 characters")
+    password: Optional[str] = Field(None, min_length=8, description="Password must be at least 8 characters")
 
 
 class UserLogin(BaseModel):
@@ -53,9 +53,21 @@ class Token(BaseModel):
     """Schema for JWT token response."""
     access_token: str
     token_type: str = "bearer"
+    is_new_user: bool = False
 
 
 class TokenData(BaseModel):
     """Schema for token payload data."""
     user_id: Optional[str] = None
+
+
+class OTPRequest(BaseModel):
+    """Schema for requesting an OTP."""
+    phone_number: str
+
+
+class OTPVerify(BaseModel):
+    """Schema for verifying an OTP."""
+    phone_number: str
+    code: str
 
