@@ -84,3 +84,26 @@ async def update_task(
     await db.commit()
     await db.refresh(task)
     return task
+
+
+@router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_task(
+    task_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Delete a scheduled task.
+    """
+    await set_tenant_context(db, current_user)
+    stmt = select(ScheduledTask).filter(ScheduledTask.id == task_id, ScheduledTask.user_id == current_user.id)
+    result = await db.execute(stmt)
+    task = result.scalars().first()
+    
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+        
+    await db.delete(task)
+    await db.commit()
+    return None
+

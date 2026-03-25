@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
 from datetime import timedelta
 
 from app.api.deps import get_db, get_current_user
@@ -179,8 +180,6 @@ async def verify_otp(
 class GoogleAuthRequest(BaseModel):
     id_token: str
 
-
-from pydantic import BaseModel as _BM  # noqa: E402 (already imported above effectively)
 
 
 @router.post("/google", response_model=Token)

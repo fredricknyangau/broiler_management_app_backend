@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 from typing import List
@@ -81,3 +81,28 @@ async def broadcast_alert(
     db.add(alert)
     await db.commit()
     return {"status": "success", "alert_id": alert.id}
+
+
+@router.delete("/{alert_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_alert(
+    alert_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Delete an alert.
+    """
+    result = await db.execute(select(Alert).filter(Alert.id == alert_id))
+    alert = result.scalars().first()
+    
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+        
+    # Check authorization
+    if current_user.role != "ADMIN" and str(alert.user_id) != str(current_user.id) and alert.user_id is not None:
+         raise HTTPException(status_code=403, detail="Not authorized to delete this alert")
+
+    await db.delete(alert)
+    await db.commit()
+    return None
+

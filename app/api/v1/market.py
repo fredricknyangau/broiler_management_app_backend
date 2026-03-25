@@ -66,3 +66,24 @@ async def update_market_price(
     await db.commit()
     await db.refresh(item)
     return item
+
+
+@router.delete("/prices/{price_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_market_price(
+    price_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Delete a market price entry.
+    """
+    result = await db.execute(select(MarketPrice).filter(MarketPrice.id == price_id))
+    item = result.scalars().first()
+    
+    if not item:
+        raise HTTPException(status_code=404, detail="Market price not found")
+        
+    await db.delete(item)
+    await db.commit()
+    return None
+
