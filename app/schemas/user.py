@@ -29,6 +29,7 @@ class UserLogin(BaseModel):
 class UserUpdate(BaseModel):
     """Schema for user updates."""
     full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
     phone_number: Optional[str] = None
     location: Optional[str] = None
     role: Optional[str] = None
