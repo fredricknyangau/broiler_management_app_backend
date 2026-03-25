@@ -7,71 +7,48 @@ from datetime import datetime, timedelta
 
 from app.api.deps import get_db, get_current_user
 from app.db.models.user import User
-from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType
+from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType, SubscriptionPlan
 from app.schemas.billing import SubscriptionCreate, SubscriptionResponse, PlanResponse
 from app.services.mpesa_service import mpesa_service
-from typing import List
+from typing import List, Optional
 
 router = APIRouter()
 
 @router.get("/plans", response_model=List[PlanResponse])
-async def get_plans() -> List[PlanResponse]:
+async def get_plans(db: AsyncSession = Depends(get_db)) -> List[PlanResponse]:
     """
-    Returns the available subscription plans.
+    Returns the available subscription plans from the database.
     """
-    return [
-        PlanResponse(
-            id="STARTER",
-            name="Starter",
-            description="Perfect for small farms just getting started.",
-            monthly_price="Free",
-            annual_price=None,
-            period="/ forever",
-            features=[
-                "Single Active Flock (1 Batch)",
-                "Up to 100 Birds Max",
-                "Basic Financial Tracking",
-                "Daily Mortality Logs",
-                "Community Support"
-            ],
-            cta="Get Started Free",
-            popular=False
-        ),
-        PlanResponse(
-            id="PROFESSIONAL",
-            name="Professional",
-            description="For growing farms that need deeper insights.",
-            monthly_price="KES 500",
-            annual_price="KES 5,000",
-            period="/ month",
-            features=[
-                "Unlimited Batches",
-                "Advanced Analytics & Reports",
-                "Inventory Management",
-                "Custom Alerts & Notifications",
-                "Email & Chat Support"
-            ],
-            cta="Start 14-Day Trial",
-            popular=True
-        ),
-        PlanResponse(
-            id="ENTERPRISE",
-            name="Enterprise",
-            description="Custom solutions for large-scale operations.",
-            monthly_price="Custom",
-            annual_price=None,
-            period="",
-            features=[
-                "Multi-farm Management",
-                "Dedicated Account Manager",
-                "API Access",
-                "Custom Integrations",
-                "On-premise Deployment Options"
-            ],
-            cta="Contact Sales",
-            popular=False
-        )
-    ]
+    result = await db.execute(select(SubscriptionPlan).filter(SubscriptionPlan.is_active == True).order_by(SubscriptionPlan.monthly_price.asc()))
+    return result.scalars().all()
+
+@router.get("/plan-details", response_model=PlanResponse)
+async def get_active_plan_details(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> PlanResponse:
+    """
+    Returns the feature details for the user's current active plan.
+    """
+    from app.api.deps import _get_effective_subscription
+    
+    # 1. Get current plan type (STARTER default)
+    plan_type = "STARTER"
+    if current_user.role == "ADMIN" or current_user.is_superuser:
+        plan_type = "ENTERPRISE"
+    else:
+        sub = await _get_effective_subscription(db, current_user)
+        if sub:
+            plan_type = sub.plan_type
+            
+    # 2. Fetch full plan details from DB
+    result = await db.execute(select(SubscriptionPlan).filter(SubscriptionPlan.plan_type == plan_type))
+    plan = result.scalars().first()
+    
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan configuration not found")
+        
+    return plan
 
 @router.post("/subscribe", response_model=SubscriptionResponse)
 async def subscribe(

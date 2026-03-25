@@ -14,11 +14,10 @@ from app.db.models.finance import Sale, Expenditure
 from app.db.models.flock import Flock
 from app.schemas.user import UserResponse, UserUpdate
 from app.services.audit_service import log_action
-from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType
-from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType
+from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType, SubscriptionPlan
 from app.db.models.role import Role
 from app.db.models.config import SystemConfig
-from app.schemas.billing import SubscriptionResponse
+from app.schemas.billing import SubscriptionResponse, PlanResponse, PlanUpdate
 from app.schemas.role import RoleCreate, RoleUpdate, RoleResponse
 from app.schemas.config import SystemConfigCreate, SystemConfigUpdate, SystemConfigResponse
 from app.db.models.audit import AuditLog
@@ -229,8 +228,14 @@ async def get_system_stats(
     users_by_plan = {}
     revenue = 0.0
     mrr = 0.0
-    price_map = {"STARTER": 0.0, "PROFESSIONAL": 3500.0, "ENTERPRISE": 10000.0}
-    
+    price_map = {}
+    plans_res = await db.execute(select(SubscriptionPlan))
+    for p in plans_res.scalars().all():
+        try:
+            price_map[p.plan_type] = float(p.monthly_price)
+        except:
+            price_map[p.plan_type] = 0.0
+            
     for sub in active_subs:
         try:
             if getattr(sub, 'amount', None):
@@ -607,4 +612,39 @@ async def get_aggregate_analytics(
         ))
 
     return result
+
+
+# --- Subscription Plan Management ---
+
+@router.get("/plans", response_model=List[PlanResponse])
+async def get_admin_plans(
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """List all subscription plan configurations."""
+    result = await db.execute(select(SubscriptionPlan).order_by(SubscriptionPlan.monthly_price.desc()))
+    return result.scalars().all()
+
+@router.patch("/plans/{plan_id}", response_model=PlanResponse)
+async def update_subscription_plan(
+    plan_id: UUID,
+    plan_in: PlanUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Update a specific subscription plan's pricing or features."""
+    result = await db.execute(select(SubscriptionPlan).filter(SubscriptionPlan.id == plan_id))
+    plan = result.scalars().first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+        
+    update_data = plan_in.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(plan, field, value)
+        
+    await db.commit()
+    await db.refresh(plan)
+    
+    await log_action(db, "UPDATE_PLAN", current_admin.id, "SubscriptionPlan", str(plan.id), update_data)
+    return plan
 

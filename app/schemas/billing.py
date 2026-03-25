@@ -25,12 +25,24 @@ class SubscriptionResponse(BaseModel):
         from_attributes = True
 
 class PlanResponse(BaseModel):
-    id: str # e.g., "STARTER", "PROFESSIONAL", "ENTERPRISE"
-    name: str # e.g., "Starter", "Professional"
-    description: str
-    monthly_price: str # e.g., "Free", "KES 500"
-    annual_price: Optional[str] = None # e.g., "KES 5,000"
-    period: str # e.g., "/ monthly", "/ forever"
+    id: UUID
+    plan_type: str
+    name: str
+    description: Optional[str]
+    monthly_price: str
+    yearly_price: str
     features: List[str]
-    cta: str # e.g., "Get Started Free"
+    is_active: bool
     popular: bool
+
+    class Config:
+        from_attributes = True
+
+class PlanUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    monthly_price: Optional[str] = None
+    yearly_price: Optional[str] = None
+    features: Optional[List[str]] = None
+    is_active: Optional[bool] = None
+    popular: Optional[bool] = None

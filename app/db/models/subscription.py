@@ -1,5 +1,5 @@
-from sqlalchemy import Column, String, DateTime, Enum, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, DateTime, Enum, ForeignKey, Boolean
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import enum
 from app.db.base import Base, TimestampMixin, UUIDMixin
@@ -29,3 +29,15 @@ class Subscription(Base, UUIDMixin, TimestampMixin):
     phone_number = Column(String, nullable=True)
 
     user = relationship("User", backref="subscriptions")
+
+class SubscriptionPlan(Base, UUIDMixin, TimestampMixin):
+    __tablename__ = "subscription_plans"
+
+    plan_type = Column(String, unique=True, nullable=False, index=True) # STARTER, PROFESSIONAL, ENTERPRISE
+    name = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    monthly_price = Column(String, nullable=False, default="0")
+    yearly_price = Column(String, nullable=False, default="0")
+    features = Column(JSONB, nullable=False, default=[]) # List of feature keys
+    is_active = Column(Boolean, default=True)
+    popular = Column(Boolean, default=False)

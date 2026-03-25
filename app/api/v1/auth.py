@@ -131,7 +131,8 @@ async def send_otp(request: OTPRequest):
     For development, the code is logged and returned in the response.
     """
     service = OTPService()
-    code = await service.send_otp(request.phone_number)
+    phone_number = request.phone_number.strip()
+    code = await service.send_otp(phone_number)
     
     return {
         "message": "OTP sent successfully",
@@ -149,7 +150,8 @@ async def verify_otp(
     If valid, logs the user in (creates account if new phone number).
     """
     otp_service = OTPService()
-    is_valid = await otp_service.verify_otp(request.phone_number, request.code)
+    phone_number = request.phone_number.strip()
+    is_valid = await otp_service.verify_otp(phone_number, request.code)
     
     if not is_valid:
         raise HTTPException(
@@ -171,7 +173,7 @@ async def verify_otp(
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "is_new_user": is_new
+        "is_new_user": is_new or not user.full_name
     }
 
 
