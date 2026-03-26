@@ -35,7 +35,7 @@ cp .env.production.example .env
 This starts the Database, Redis, API, and Celery workers.
 
 ```bash
-docker-compose up -d --build
+docker compose up -d --build
 ```
 
 - API: http://localhost:8000

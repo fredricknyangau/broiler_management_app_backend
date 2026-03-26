@@ -27,6 +27,7 @@ class Subscription(Base, UUIDMixin, TimestampMixin):
     mpesa_reference = Column(String, nullable=True, unique=True, index=True)
     checkout_request_id = Column(String, nullable=True, unique=True, index=True)
     phone_number = Column(String, nullable=True)
+    billing_period = Column(String, nullable=True) # "monthly" or "yearly"
 
     user = relationship("User", backref="subscriptions")
 
@@ -41,3 +42,4 @@ class SubscriptionPlan(Base, UUIDMixin, TimestampMixin):
     features = Column(JSONB, nullable=False, default=[]) # List of feature keys
     is_active = Column(Boolean, default=True)
     popular = Column(Boolean, default=False)
+    show_discount = Column(Boolean, default=True)

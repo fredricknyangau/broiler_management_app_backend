@@ -66,15 +66,20 @@ async def subscribe(
             detail="Only Farm Owners can manage subscriptions."
         )
 
-    # 1. Determine Amount
-    amount = 0
-    if payload.plan_type == "PROFESSIONAL":
-        amount = 500 if payload.billing_period == "monthly" else 5000
-    elif payload.plan_type == "ENTERPRISE":
-        # Enterprise is usually custom, but let's put a placeholder
-        amount = 10000 
-    else:
-        raise HTTPException(status_code=400, detail="Invalid plan type")
+    # 1. Fetch Plan Details from DB for Pricing
+    result = await db.execute(select(SubscriptionPlan).filter(SubscriptionPlan.plan_type == payload.plan_type))
+    plan = result.scalars().first()
+    
+    if not plan:
+        raise HTTPException(status_code=404, detail="Subscription plan configuration not found.")
+
+    try:
+        if payload.billing_period == "monthly":
+            amount = int(float(plan.monthly_price))
+        else:
+            amount = int(float(plan.yearly_price))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=500, detail="Plan price configuration is invalid (numeric expected).")
 
     # Normalize Phone Number
     phone = payload.phone_number.strip()
@@ -87,6 +92,7 @@ async def subscribe(
     subscription = Subscription(
         user_id=current_user.id,
         plan_type=payload.plan_type,
+        billing_period=payload.billing_period,
         status=SubscriptionStatus.PENDING,
         amount=str(amount),
         phone_number=phone,
@@ -160,14 +166,10 @@ async def mpesa_callback(request: Request, db: AsyncSession = Depends(get_db)):
                 subscription.status = SubscriptionStatus.ACTIVE
                 subscription.start_date = datetime.now()
                 
-                # Re-infer duration (logic duplicated from simulate)
-                try:
-                    amt = float(subscription.amount)
-                    if amt < 2000: 
-                         subscription.end_date = datetime.now() + timedelta(days=30)
-                    else:
-                         subscription.end_date = datetime.now() + timedelta(days=365)
-                except:
+                # Use billing_period for duration
+                if subscription.billing_period == "yearly":
+                    subscription.end_date = datetime.now() + timedelta(days=365)
+                else:
                     subscription.end_date = datetime.now() + timedelta(days=30)
             else:
                 # Payment Failed / Cancelled
@@ -265,15 +267,10 @@ async def simulate_callback(
     sub.status = SubscriptionStatus.ACTIVE
     sub.start_date = datetime.now()
     
-    # Infer duration from amount
-    try:
-        amt = float(sub.amount)
-        if amt < 2000: # Threshold for monthly
-             sub.end_date = datetime.now() + timedelta(days=30)
-        else:
-             sub.end_date = datetime.now() + timedelta(days=365)
-    except:
-        # Fallback
+    # Use billing_period for duration
+    if sub.billing_period == "yearly":
+        sub.end_date = datetime.now() + timedelta(days=365)
+    else:
         sub.end_date = datetime.now() + timedelta(days=30)
 
     await db.commit()

@@ -17,7 +17,7 @@ from app.services.audit_service import log_action
 from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType, SubscriptionPlan
 from app.db.models.role import Role
 from app.db.models.config import SystemConfig
-from app.schemas.billing import SubscriptionResponse, PlanResponse, PlanUpdate
+from app.schemas.billing import SubscriptionResponse, PlanResponse, PlanUpdate, PlanCreate
 from app.schemas.role import RoleCreate, RoleUpdate, RoleResponse
 from app.schemas.config import SystemConfigCreate, SystemConfigUpdate, SystemConfigResponse
 from app.db.models.audit import AuditLog
@@ -154,18 +154,28 @@ class AdminTransaction(BaseModel):
     date: datetime
     mpesa_ref: Optional[str]
 
-class PlanUpdate(BaseModel):
-    plan_type: PlanType
+class AdminSubscription(BaseModel):
+    id: UUID
+    user_email: str
+    plan_type: str
+    status: str
+    start_date: Optional[datetime]
+    end_date: Optional[datetime]
+    amount: Optional[str]
+    mpesa_reference: Optional[str]
+
+from app.schemas.billing import SubscriptionResponse, PlanResponse, PlanUpdate, SubscriptionOverride
 
 @router.put("/users/{user_id}/subscription", response_model=SubscriptionResponse)
 async def update_user_subscription(
-    user_id: UUID,
-    plan_update: PlanUpdate,
+    user_id: str,
+    override: SubscriptionOverride,
     current_admin: User = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Override or create a user's active subscription (Admin only).
+    Now supports manual end_date, amount, and status overrides.
     """
     user_res = await db.execute(select(User).filter(User.id == user_id))
     user = user_res.scalars().first()
@@ -181,16 +191,27 @@ async def update_user_subscription(
     sub = result.scalars().first()
 
     now = datetime.now()
+    details = override.model_dump(exclude_unset=True)
+    
     if sub:
-        sub.plan_type = plan_update.plan_type
+        sub.plan_type = override.plan_type
+        if override.end_date:
+            sub.end_date = override.end_date
+        if override.amount:
+            sub.amount = override.amount
+        if override.status:
+            sub.status = override.status
         sub.updated_at = now
     else:
+        # Create new manual subscription
         sub = Subscription(
             user_id=user_id,
-            plan_type=plan_update.plan_type,
-            status=SubscriptionStatus.ACTIVE,
+            plan_type=override.plan_type,
+            status=override.status or SubscriptionStatus.ACTIVE,
             start_date=now,
-            end_date=now + timedelta(days=365)
+            end_date=override.end_date or (now + timedelta(days=365)),
+            amount=override.amount or "0",
+            mpesa_reference=f"MANUAL-{current_admin.id}-{int(now.timestamp())}"
         )
         db.add(sub)
 
@@ -199,10 +220,11 @@ async def update_user_subscription(
 
     await log_action(
         db=db,
-        action="UPDATE_SUBSCRIPTION",
+        action="MANUAL_SUBSCRIPTION_OVERRIDE",
         user_id=current_admin.id,
         resource_type="Subscription",
-        details=f"Updated user {user_id} plan to {plan_update.plan_type}"
+        resource_id=str(sub.id),
+        details=details
     )
 
     return sub
@@ -589,15 +611,24 @@ async def get_aggregate_analytics(
     today = datetime.now().date()
     start_date = today - timedelta(days=180)
 
-    sales_stmt = select(Sale.date, func.sum(Sale.amount).label("amount")).filter(Sale.date >= start_date).group_by(Sale.date)
+    sales_stmt = select(
+        Sale.date, 
+        func.coalesce(func.sum(Sale.total_amount), 0).label("amount")
+    ).filter(Sale.date >= start_date).group_by(Sale.date)
     sales_res = await db.execute(sales_stmt)
     sales = {r.date: r.amount for r in sales_res.all()}
 
-    expenses_stmt = select(Expenditure.date, func.sum(Expenditure.amount).label("amount")).filter(Expenditure.date >= start_date).group_by(Expenditure.date)
+    expenses_stmt = select(
+        Expenditure.date, 
+        func.coalesce(func.sum(Expenditure.amount), 0).label("amount")
+    ).filter(Expenditure.date >= start_date).group_by(Expenditure.date)
     expenses_res = await db.execute(expenses_stmt)
     expenses = {r.date: r.amount for r in expenses_res.all()}
 
-    flocks_stmt = select(Flock.start_date, func.sum(Flock.initial_count).label("birds")).filter(Flock.start_date >= start_date).group_by(Flock.start_date)
+    flocks_stmt = select(
+        Flock.start_date, 
+        func.coalesce(func.sum(Flock.initial_count), 0).label("birds")
+    ).filter(Flock.start_date >= start_date).group_by(Flock.start_date)
     flocks_res = await db.execute(flocks_stmt)
     flocks = {r.start_date: r.birds for r in flocks_res.all()}
 
@@ -648,3 +679,96 @@ async def update_subscription_plan(
     await log_action(db, "UPDATE_PLAN", current_admin.id, "SubscriptionPlan", str(plan.id), update_data)
     return plan
 
+@router.post("/plans", response_model=PlanResponse, status_code=status.HTTP_201_CREATED)
+async def create_subscription_plan(
+    plan_in: PlanCreate,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Create a new subscription plan."""
+    # Check if plan_type already exists
+    existing = await db.execute(select(SubscriptionPlan).filter(SubscriptionPlan.plan_type == plan_in.plan_type))
+    if existing.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD__REQUEST, 
+            detail=f"Plan type {plan_in.plan_type} already exists"
+        )
+    
+    plan = SubscriptionPlan(**plan_in.model_dump())
+    db.add(plan)
+    await db.commit()
+    await db.refresh(plan)
+    
+    await log_action(db, "CREATE_PLAN", current_admin.id, "SubscriptionPlan", str(plan.id), plan_in.model_dump())
+    return plan
+
+@router.delete("/plans/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_subscription_plan(
+    plan_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Delete a subscription plan."""
+    result = await db.execute(select(SubscriptionPlan).filter(SubscriptionPlan.id == plan_id))
+    plan = result.scalars().first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+        
+    # Check if any users are currently on this plan (optional safety check)
+    # For now, let's just delete it
+    await db.delete(plan)
+    await db.commit()
+    
+    await log_action(db, "DELETE_PLAN", current_admin.id, "SubscriptionPlan", str(plan_id), {"plan_type": plan.plan_type})
+    return None
+@router.get("/subscriptions/all", response_model=PaginatedResponse[AdminSubscription])
+async def get_all_user_subscriptions(
+    limit: int = 50,
+    skip: int = 0,
+    search: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """
+    List all user subscriptions with details (Admin only).
+    """
+    query = select(Subscription).options(joinedload(Subscription.user))
+    
+    if search:
+        query = query.join(User).filter(
+            or_(
+                User.email.ilike(f"%{search}%"),
+                Subscription.plan_type.ilike(f"%{search}%"),
+                Subscription.status.ilike(f"%{search}%"),
+                Subscription.mpesa_reference.ilike(f"%{search}%")
+            )
+        )
+        
+    total_res = await db.execute(select(func.count()).select_from(query.subquery()))
+    total_count = total_res.scalar() or 0
+    
+    result = await db.execute(
+        query.order_by(Subscription.created_at.desc())
+        .offset(skip).limit(limit)
+    )
+    subs = result.scalars().all()
+    
+    items = []
+    for sub in subs:
+        items.append(AdminSubscription(
+            id=sub.id,
+            user_email=sub.user.email if sub.user else "Deleted User",
+            plan_type=sub.plan_type,
+            status=sub.status,
+            start_date=sub.start_date,
+            end_date=sub.end_date,
+            amount=sub.amount,
+            mpesa_reference=sub.mpesa_reference
+        ))
+        
+    return PaginatedResponse(
+        items=items,
+        total_count=total_count,
+        total_pages=(total_count + limit - 1) // limit if limit > 0 else 1,
+        current_page=(skip // limit) + 1 if limit > 0 else 1
+    )
