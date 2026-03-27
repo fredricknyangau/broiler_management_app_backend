@@ -38,6 +38,12 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
     
+    # Set RLS context before lookup so the policy allows seeing our own user row
+    # We use user_id from token to identify the session
+    await db.execute(
+        text(f"SET LOCAL app.current_user_id = '{user_id}'")
+    )
+    
     # Async query
     result = await db.execute(select(User).filter(User.id == UUID(user_id)))
     user = result.scalars().first()
@@ -51,21 +57,32 @@ async def get_current_user(
             detail="Inactive user"
         )
     
-    # Auto-set RLS context for the session
-    await set_tenant_context(db, user)
+    # Also set admin flag if applicable for global bypass policies
+    if user.role == UserRole.ADMIN or user.is_superuser:
+        await db.execute(text("SET LOCAL app.is_admin = 'true'"))
     
     return user
 
 
 async def set_tenant_context(db: AsyncSession, user: User):
     """
-    Set PostgreSQL session variable for RLS.
-    Call this after getting current_user in protected routes.
+    Set PostgreSQL session variables for RLS.
+    Call this after getting current_user in protected routes or 
+    during initial authentication lookups.
     """
     await db.execute(
         text(f"SET LOCAL app.current_user_id = '{str(user.id)}'")
     )
-    await db.commit()
+    if user.role == UserRole.ADMIN or user.is_superuser:
+        await db.execute(text("SET LOCAL app.is_admin = 'true'"))
+
+
+async def set_rls_bypass(db: AsyncSession):
+    """
+    Enable RLS bypass for the current transaction.
+    Used for critical auth lookups (registration, login by email/phone).
+    """
+    await db.execute(text("SET LOCAL app.bypass_rls = 'on'"))
 
 
 def get_current_active_superuser(

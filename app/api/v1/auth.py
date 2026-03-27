@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from datetime import timedelta
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_db, get_current_user, set_rls_bypass, set_tenant_context
 from app.schemas.user import UserCreate, UserLogin, UserResponse, Token, UserUpdate, OTPRequest, OTPVerify
 from app.services.user_service import UserService
 from app.services.otp_service import OTPService
@@ -29,6 +29,9 @@ async def register(
     - **location**: Farm location
     """
     service = UserService(db)
+    
+    # Enable bypass for the lookup/creation
+    await set_rls_bypass(db)
     
     try:
         user = await service.create_user(
@@ -63,6 +66,9 @@ async def login(
     Token expires after 7 days by default.
     """
     service = UserService(db)
+    
+    # Enable bypass for initial authentication lookup
+    await set_rls_bypass(db)
     
     # Authenticate user
     user = await service.authenticate(credentials.email, credentials.password)
@@ -161,6 +167,8 @@ async def verify_otp(
         )
         
     user_service = UserService(db)
+    # Enable bypass for user creation/lookup after OTP verification
+    await set_rls_bypass(db)
     user, is_new = await user_service.get_or_create_user_by_phone(request.phone_number)
     
     # Create access token
@@ -234,6 +242,8 @@ async def google_sso(
         )
 
     service = UserService(db)
+    # Enable bypass for SSO user creation/lookup
+    await set_rls_bypass(db)
     user, is_new = await service.get_or_create_user_by_email(
         email=email,
         full_name=full_name,
@@ -351,6 +361,8 @@ async def apple_sso(
         )
 
     service = UserService(db)
+    # Enable bypass for SSO user creation/lookup
+    await set_rls_bypass(db)
     user, is_new = await service.get_or_create_user_by_email(
         email=email,
         full_name=payload.full_name,
