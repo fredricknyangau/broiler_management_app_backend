@@ -30,11 +30,11 @@ def upgrade() -> None:
     """)
 
     # --- Farms policies ---
-    # A user can see a farm if they own it (farmer_id) or are a member
+    # A user can see a farm if they own it (owner_id) or are a member
     op.execute("""
         CREATE POLICY farm_access ON farms
         USING (
-            farmer_id = current_setting('app.current_user_id', TRUE)::uuid
+            owner_id = current_setting('app.current_user_id', TRUE)::uuid
             OR id IN (SELECT farm_id FROM farm_members WHERE user_id = current_setting('app.current_user_id', TRUE)::uuid)
         );
     """)
