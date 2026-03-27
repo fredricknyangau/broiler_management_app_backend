@@ -4,7 +4,7 @@ from sqlalchemy import select
 from typing import List
 from uuid import UUID
 
-from app.api.deps import get_db, get_current_user # Auth optional for reading market prices? enforcing for now, set_tenant_context
+from app.api.deps import get_db, get_current_user, get_current_non_viewer # Auth optional for reading market prices? enforcing for now, set_tenant_context
 from app.db.models.market import MarketPrice
 from app.schemas.market import MarketPriceCreate, MarketPriceResponse
 
@@ -14,7 +14,7 @@ router = APIRouter()
 async def create_market_price(
     item_in: MarketPriceCreate,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user) # Only auth users can add prices
+    current_user = Depends(get_current_non_viewer) # Only auth users can add prices
 ):
     """
     Record a new market price.
@@ -48,7 +48,7 @@ async def update_market_price(
     price_id: UUID,
     item_in: MarketPriceCreate,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_non_viewer)
 ):
     """
     Update a market price.

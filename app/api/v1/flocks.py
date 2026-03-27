@@ -5,7 +5,7 @@ from sqlalchemy import select
 from typing import List, Optional
 from uuid import UUID
 
-from app.api.deps import get_db, get_current_user, set_tenant_context
+from app.api.deps import get_db, get_current_user, set_tenant_context, get_current_non_viewer
 from app.db.models.flock import Flock
 from app.db.models.user import User
 from app.schemas.flock import FlockCreate, FlockResponse, FlockUpdate
@@ -18,7 +18,7 @@ router = APIRouter()
 async def create_flock(
     flock_in: FlockCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """
     Create a new flock.
@@ -133,7 +133,7 @@ async def update_flock(
     flock_id: UUID,
     flock_in: FlockUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """
     Update a flock's details.
@@ -159,7 +159,7 @@ async def update_flock(
 async def delete_flock(
     flock_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """
     Delete a flock.

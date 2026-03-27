@@ -24,7 +24,7 @@ class AlertService:
             title=title,
             message=message,
             status="active",
-            triggered_at=datetime.utcnow()
+            triggered_at=datetime.now(timezone.utc)
         )
         self.db.add(alert)
         await self.db.commit()

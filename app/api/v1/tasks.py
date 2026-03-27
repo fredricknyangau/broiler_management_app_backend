@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
 from uuid import UUID
-from app.api.deps import get_db, get_current_user, set_tenant_context
+from app.api.deps import get_db, get_current_user, set_tenant_context, get_current_non_viewer
 from app.db.models.user import User
 from app.db.models.scheduled_task import ScheduledTask
 from app.schemas.scheduled_task import ScheduledTaskResponse, ScheduledTaskCreate, ScheduledTaskUpdate
@@ -25,7 +25,7 @@ async def read_tasks(
 async def create_task(
     task_in: ScheduledTaskCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """Create a new scheduled task."""
     await set_tenant_context(db, current_user)
@@ -66,7 +66,7 @@ async def update_task(
     task_id: UUID,
     task_in: ScheduledTaskUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """Update a task."""
     await set_tenant_context(db, current_user)
@@ -90,7 +90,7 @@ async def update_task(
 async def delete_task(
     task_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """
     Delete a scheduled task.

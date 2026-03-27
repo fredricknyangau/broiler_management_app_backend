@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional, Any, Dict
 from pydantic import BaseModel
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.api.deps import get_db, get_current_user
 from app.db.models.user import User
@@ -129,12 +129,13 @@ async def sync_data(
     result = await db.execute(select(BiosecurityCheck).filter(BiosecurityCheck.farmer_id == current_user.id))
     biosecurity = result.scalars().all()
     
+
     # 5. Health & Market
     result = await db.execute(select(VetConsultation).filter(VetConsultation.farmer_id == current_user.id))
     vet_consultations = result.scalars().all()
     
     # Market prices (last 90 days, global)
-    ninety_days_ago = datetime.utcnow().date() - timedelta(days=90)
+    ninety_days_ago = datetime.now(timezone.utc).date() - timedelta(days=90)
     result = await db.execute(select(MarketPrice).filter(MarketPrice.price_date >= ninety_days_ago))
     market_prices = result.scalars().all()
     

@@ -4,7 +4,7 @@ from sqlalchemy import select
 from typing import List
 from uuid import UUID
 
-from app.api.deps import get_db, get_current_user, set_tenant_context
+from app.api.deps import get_db, get_current_user, set_tenant_context, get_current_non_viewer
 from app.db.models.biosecurity import BiosecurityCheck
 from app.db.models.user import User
 from app.schemas.biosecurity import BiosecurityCheckCreate, BiosecurityCheckResponse, BiosecurityCheckUpdate
@@ -15,7 +15,7 @@ router = APIRouter()
 async def create_biosecurity_check(
     check_in: BiosecurityCheckCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """
     Log a biosecurity compliance check.
@@ -49,7 +49,7 @@ async def update_biosecurity_check(
     check_id: UUID,
     check_in: BiosecurityCheckUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """
     Update a biosecurity record.
@@ -72,7 +72,7 @@ async def update_biosecurity_check(
 async def delete_biosecurity_check(
     check_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """
     Delete a biosecurity record.

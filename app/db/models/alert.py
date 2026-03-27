@@ -2,8 +2,7 @@ from sqlalchemy import Column, String, Text, ForeignKey, Index, DateTime
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from app.db.base import Base, TimestampMixin, UUIDMixin
-from datetime import datetime
-
+from datetime import datetime, timezone
 
 class Alert(Base, UUIDMixin, TimestampMixin):
     """
@@ -18,7 +17,7 @@ class Alert(Base, UUIDMixin, TimestampMixin):
     title = Column(String(255), nullable=False)
     message = Column(Text, nullable=False)
     status = Column(String(20), default="active", nullable=False, doc="active, acknowledged, resolved")
-    triggered_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    triggered_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     acknowledged_at = Column(DateTime(timezone=True))
     resolved_at = Column(DateTime(timezone=True))
     alert_metadata = Column(JSONB, doc="Contextual data (e.g. sensor readings, inventory id)")

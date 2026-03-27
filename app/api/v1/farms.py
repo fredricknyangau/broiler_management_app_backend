@@ -4,7 +4,7 @@ from sqlalchemy import select
 from typing import List
 from uuid import UUID
 
-from app.api.deps import get_db, get_current_user, check_enterprise_subscription
+from app.api.deps import get_db, get_current_user, check_enterprise_subscription, get_current_non_viewer
 from app.db.models.farm import Farm
 from app.db.models.user import User
 from app.schemas.farm import FarmCreate, FarmResponse, FarmUpdate
@@ -26,7 +26,7 @@ async def list_farms(
 async def create_farm(
     farm_in: FarmCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """
     Create a new farm profile for multi-location management.
@@ -46,7 +46,7 @@ async def update_farm(
     farm_id: UUID,
     farm_in: FarmUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """
     Update existing farm details layout parameters.
@@ -73,7 +73,7 @@ async def add_farm_member(
     farm_id: UUID,
     user_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """
     Add a manager or viewer (User) to a specific Farm Profile.
@@ -107,7 +107,7 @@ async def add_farm_member(
 async def delete_farm(
     farm_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_non_viewer)
 ):
     """
     Delete a farm profile. Only the owner can delete.

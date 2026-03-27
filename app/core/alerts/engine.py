@@ -13,8 +13,7 @@ from app.core.alerts.rules import (
 from app.core.alerts.base import AlertRule, AlertResult
 from app.db.models.alert import Alert
 from uuid import UUID
-from datetime import datetime, timedelta
-
+from datetime import datetime, timedelta, timezone
 
 class AlertEngine:
     """Evaluates alert rules and manages alert lifecycle"""
@@ -51,7 +50,7 @@ class AlertEngine:
                         existing.severity = result.severity.value
                         existing.message = result.message
                         existing.metadata = result.metadata
-                        existing.triggered_at = datetime.utcnow()
+                        existing.triggered_at = datetime.now(timezone.utc)
                         self.db.commit()
                         triggered_alerts.append(existing)
                 else:
@@ -97,7 +96,7 @@ class AlertEngine:
             return False
         
         alert.status = "acknowledged"
-        alert.acknowledged_at = datetime.utcnow()
+        alert.acknowledged_at = datetime.now(timezone.utc)
         self.db.commit()
         return True
     
@@ -108,13 +107,13 @@ class AlertEngine:
             return False
         
         alert.status = "resolved"
-        alert.resolved_at = datetime.utcnow()
+        alert.resolved_at = datetime.now(timezone.utc)
         self.db.commit()
         return True
     
     def auto_resolve_stale_alerts(self, hours: int = 24):
         """Auto-resolve alerts that haven't been updated in N hours"""
-        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
         
         stale_alerts = self.db.query(Alert).filter(
             Alert.status == "active",
@@ -123,7 +122,7 @@ class AlertEngine:
         
         for alert in stale_alerts:
             alert.status = "resolved"
-            alert.resolved_at = datetime.utcnow()
+            alert.resolved_at = datetime.now(timezone.utc)
         
         self.db.commit()
         return len(stale_alerts)

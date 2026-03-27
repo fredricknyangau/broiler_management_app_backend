@@ -3,15 +3,15 @@ services:
     image: postgres:16-alpine
     container_name: broiler_postgres
     environment:
-      POSTGRES_USER: broiler_user
-      POSTGRES_PASSWORD: broiler_pass
-      POSTGRES_DB: broiler_farm_db
+      POSTGRES_USER: ${POSTGRES_USER:-broiler_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-broiler_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-broiler_farm_db}
     ports:
       - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U broiler_user -d broiler_farm_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-broiler_user} -d ${POSTGRES_DB:-broiler_farm_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -38,16 +38,16 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: broiler_api
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql+asyncpg://broiler_user:broiler_pass@postgres:5432/broiler_farm_db
-      - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=dev-secret-key-change-in-production
-      - DEBUG=True
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-broiler_user}:${POSTGRES_PASSWORD:-broiler_pass}@postgres:5432/${POSTGRES_DB:-broiler_farm_db}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - SECRET_KEY=${SECRET_KEY}
+      - DEBUG=${DEBUG:-False}
     volumes:
       - ./app:/app/app
       - ./alembic:/app/alembic
@@ -63,17 +63,16 @@ services:
   celery_worker:
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: Dockerfile
     container_name: broiler_celery_worker
     command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=4
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgresql+asyncpg://broiler_user:broiler_pass@postgres:5432/broiler_farm_db
-      - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=dev-secret-key-change-in-production
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-broiler_user}:${POSTGRES_PASSWORD:-broiler_pass}@postgres:5432/${POSTGRES_DB:-broiler_farm_db}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     volumes:
       - ./app:/app/app
-      - ./alembic:/app/alembic
-      - ./alembic.ini:/app/alembic.ini
     depends_on:
       postgres:
         condition: service_healthy
@@ -85,17 +84,16 @@ services:
   celery_beat:
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: Dockerfile
     container_name: broiler_celery_beat
     command: celery -A app.workers.celery_app beat --loglevel=info
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgresql+asyncpg://broiler_user:broiler_pass@postgres:5432/broiler_farm_db
-      - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=dev-secret-key-change-in-production
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-broiler_user}:${POSTGRES_PASSWORD:-broiler_pass}@postgres:5432/${POSTGRES_DB:-broiler_farm_db}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     volumes:
       - ./app:/app/app
-      - ./alembic:/app/alembic
-      - ./alembic.ini:/app/alembic.ini
     depends_on:
       postgres:
         condition: service_healthy
@@ -107,17 +105,15 @@ services:
   flower:
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: Dockerfile
     container_name: broiler_flower
     command: celery -A app.workers.celery_app flower --port=5555
     ports:
       - "5555:5555"
+    env_file:
+      - .env
     environment:
-      - REDIS_URL=redis://redis:6379/0
-    volumes:
-      - ./app:/app/app
-      - ./alembic:/app/alembic
-      - ./alembic.ini:/app/alembic.ini
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     depends_on:
       - redis
       - celery_worker
@@ -128,8 +124,8 @@ services:
     image: dpage/pgadmin4:latest
     container_name: broiler_pgadmin
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@broiler.farm
-      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@broiler.farm}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin123}
       PGADMIN_CONFIG_SERVER_MODE: "False"
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
     ports:

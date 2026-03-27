@@ -51,6 +51,9 @@ async def get_current_user(
             detail="Inactive user"
         )
     
+    # Auto-set RLS context for the session
+    await set_tenant_context(db, user)
+    
     return user
 
 

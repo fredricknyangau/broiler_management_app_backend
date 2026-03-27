@@ -35,7 +35,7 @@ async def create_supplier(
     *,
     db: AsyncSession = Depends(deps.get_db),
     supplier_in: schemas.SupplierCreate,
-    current_user = Depends(deps.get_current_user),
+    current_user = Depends(deps.get_current_non_viewer),
 ) -> Any:
     """
     Create new supplier.
@@ -55,7 +55,7 @@ async def update_supplier(
     db: AsyncSession = Depends(deps.get_db),
     supplier_id: UUID,
     supplier_in: schemas.SupplierUpdate,
-    current_user = Depends(deps.get_current_user),
+    current_user = Depends(deps.get_current_non_viewer),
 ) -> Any:
     """
     Update a supplier.
@@ -79,7 +79,7 @@ async def delete_supplier(
     *,
     db: AsyncSession = Depends(deps.get_db),
     supplier_id: UUID,
-    current_user = Depends(deps.get_current_user),
+    current_user = Depends(deps.get_current_non_viewer),
 ) -> Any:
     """
     Delete a supplier.
@@ -118,7 +118,7 @@ async def create_customer(
     *,
     db: AsyncSession = Depends(deps.get_db),
     customer_in: schemas.CustomerCreate,
-    current_user = Depends(deps.get_current_user),
+    current_user = Depends(deps.get_current_non_viewer),
 ) -> Any:
     """
     Create new customer.
@@ -138,7 +138,7 @@ async def update_customer(
     db: AsyncSession = Depends(deps.get_db),
     customer_id: UUID,
     customer_in: schemas.CustomerUpdate,
-    current_user = Depends(deps.get_current_user),
+    current_user = Depends(deps.get_current_non_viewer),
 ) -> Any:
     """
     Update a customer.
@@ -162,7 +162,7 @@ async def delete_customer(
     *,
     db: AsyncSession = Depends(deps.get_db),
     customer_id: UUID,
-    current_user = Depends(deps.get_current_user),
+    current_user = Depends(deps.get_current_non_viewer),
 ) -> Any:
     """
     Delete a customer.
@@ -202,7 +202,7 @@ async def create_employee(
     *,
     db: AsyncSession = Depends(deps.get_db),
     employee_in: schemas.EmployeeCreate,
-    current_user = Depends(deps.get_current_user),
+    current_user = Depends(deps.get_current_non_viewer),
 ) -> Any:
     """
     Create new employee.
@@ -246,7 +246,7 @@ async def update_employee(
     db: AsyncSession = Depends(deps.get_db),
     employee_id: UUID,
     employee_in: schemas.EmployeeUpdate,
-    current_user = Depends(deps.get_current_user),
+    current_user = Depends(deps.get_current_non_viewer),
 ) -> Any:
     """
     Update an employee.
@@ -270,7 +270,7 @@ async def delete_employee(
     *,
     db: AsyncSession = Depends(deps.get_db),
     employee_id: UUID,
-    current_user = Depends(deps.get_current_user),
+    current_user = Depends(deps.get_current_non_viewer),
 ) -> Any:
     """
     Delete an employee.
