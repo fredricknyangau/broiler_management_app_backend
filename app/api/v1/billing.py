@@ -231,7 +231,8 @@ async def get_my_subscription(
             status=SubscriptionStatus.ACTIVE,
             start_date=None,
             end_date=None,
-            mpesa_reference=None
+            mpesa_reference=None,
+            billing_period=None
         )
 
     # 2. Lookup Inherited/Effective Subscription
@@ -246,7 +247,8 @@ async def get_my_subscription(
             status=SubscriptionStatus.ACTIVE,
             start_date=None,
             end_date=None,
-            mpesa_reference=None
+            mpesa_reference=None,
+            billing_period=None
         )
     return sub
 
