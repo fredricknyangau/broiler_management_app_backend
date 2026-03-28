@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
@@ -36,6 +36,21 @@ class PlanResponse(BaseModel):
     is_active: bool
     popular: bool
     show_discount: bool
+
+    @field_validator('is_active', mode='before')
+    @classmethod
+    def parse_is_active(cls, v):
+        return True if v is None else v
+
+    @field_validator('popular', mode='before')
+    @classmethod
+    def parse_popular(cls, v):
+        return False if v is None else v
+
+    @field_validator('show_discount', mode='before')
+    @classmethod
+    def parse_show_discount(cls, v):
+        return True if v is None else v
 
     class Config:
         from_attributes = True
