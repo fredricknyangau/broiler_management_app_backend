@@ -23,6 +23,7 @@ class User(Base, UUIDMixin, TimestampMixin):
     full_name = Column(String(255), doc="User's full display name")
     phone_number = Column(String(20), doc="Contact phone number")
     location = Column(String(255), doc="Farm location or user's address")
+    county = Column(String(100), nullable=True, index=True, doc="Kenyan County for regional benchmarking")
     is_active = Column(Boolean, default=True, nullable=False, doc="Designates whether this user should be treated as active")
     is_superuser = Column(Boolean, default=False, nullable=False, doc="Designates whether this user has admin privileges")
     preferences = Column(JSON, default={}, nullable=True, doc="User's personalized settings and preferences")

@@ -70,3 +70,46 @@ class GeminiProvider(AIProvider):
                 raise ValueError("AI Provider returned invalid JSON string") from e
 
 
+    async def transcribe_audio(self, audio_bytes: bytes, filename: str = "audio.wav") -> str:
+        """
+        Transcribe audio using Google Gemini multimodal capabilities.
+        """
+        import base64
+        if not self.api_key:
+            raise ValueError("LLM_API_KEY not configured for Gemini")
+            
+        url = f"{self.base_url}?key={self.api_key}"
+        headers = {"Content-Type": "application/json"}
+        
+        mime_type = "audio/mpeg" if filename.endswith(".mp3") else "audio/wav"
+        audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
+
+        payload = {
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [
+                        {"text": "Please transcribe this audio exactly as heard. Return only the transcript text."},
+                        {
+                            "inlineData": {
+                                "mimeType": mime_type,
+                                "data": audio_base64
+                            }
+                        }
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0.0
+            }
+        }
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            try:
+                response = await client.post(url, headers=headers, json=payload)
+                response.raise_for_status()
+                data = response.json()
+                return data["candidates"][0]["content"]["parts"][0]["text"]
+            except Exception as e:
+                logger.error(f"Gemini Transcription Error: {e}")
+                raise ValueError(f"Gemini transcription failed: {str(e)}")

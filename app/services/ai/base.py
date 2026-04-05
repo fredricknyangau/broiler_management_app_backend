@@ -13,3 +13,9 @@ class AIProvider(ABC):
         Request a structured JSON response from the LLM provider.
         """
         pass
+    @abstractmethod
+    async def transcribe_audio(self, audio_bytes: bytes, filename: str) -> str:
+        """
+        Convert audio bytes to text transcript.
+        """
+        pass

@@ -53,3 +53,30 @@ class OpenAIProvider(AIProvider):
             except json.JSONDecodeError as e:
                 logger.error(f"OpenAI returned malformed JSON: {raw_content}")
                 raise ValueError("AI Provider returned invalid JSON") from e
+    async def transcribe_audio(self, audio_bytes: bytes, filename: str = "audio.wav") -> str:
+        """
+        Transcribe audio using OpenAI Whisper.
+        """
+        if not self.api_key:
+            raise ValueError("LLM_API_KEY not configured for OpenAI")
+            
+        url = "https://api.openai.com/v1/audio/transcriptions"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}"
+        }
+        
+        # Files for multipart form data
+        files = {
+            "file": (filename, audio_bytes, "audio/mpeg" if filename.endswith(".mp3") else "audio/wav"),
+            "model": (None, "whisper-1")
+        }
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            try:
+                response = await client.post(url, headers=headers, files=files)
+                response.raise_for_status()
+                data = response.json()
+                return data.get("text", "")
+            except Exception as e:
+                logger.error(f"OpenAI Whisper Error: {e}")
+                raise ValueError(f"Transcription failed: {str(e)}")

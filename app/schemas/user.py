@@ -9,6 +9,7 @@ class UserBase(BaseModel):
     full_name: Optional[str] = None
     phone_number: Optional[str] = None
     location: Optional[str] = None
+    county: Optional[str] = None
     is_active: Optional[bool] = True
     is_superuser: bool = False
     role: Optional[str] = "FARMER"
@@ -32,6 +33,7 @@ class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     phone_number: Optional[str] = None
     location: Optional[str] = None
+    county: Optional[str] = None
     role: Optional[str] = None
     is_active: Optional[bool] = None
     is_superuser: Optional[bool] = None

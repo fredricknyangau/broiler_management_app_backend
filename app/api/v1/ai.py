@@ -11,7 +11,10 @@ from app.schemas.ai import (
     FcrInsightsRequest,
     FcrInsightsResponse,
     ChatRequest,
-    ChatResponse
+    ChatResponse,
+    VoiceObservationResponse,
+    HarvestOptimizationRequest,
+    HarvestOptimizationResponse
 )
 from app.services.ai.factory import get_ai_provider
 from app.api.deps import get_current_user
@@ -19,6 +22,39 @@ from typing import Any
 import json
 
 router = APIRouter()
+
+@router.post("/chat", response_model=ChatResponse)
+async def get_ai_chat(
+    payload: ChatRequest,
+    current_user: Any = Depends(get_current_user)
+):
+    """
+    6. General Conversational Advice
+    Safety conversational buffer housing East-African contextual memory buffers.
+    """
+    provider = get_ai_provider()
+    system_prompt = """
+You are a helpful East African poultry farming expert.
+Provide safe, practical advice for raising broilers securely.
+Return response STRICTLY as a JSON object matching the requested schema.
+"""
+    user_prompt = payload.message
+    if payload.history:
+         # Optionally inject history into prompt context for memory buffering
+         hist_str = "\n".join([f"{h.role.upper()}: {h.content}" for h in payload.history])
+         user_prompt = f"Chat History:\n{hist_str}\n\nUser: {payload.message}"
+
+    expected_schema = ChatResponse.model_json_schema()
+    system_prompt += f"\n\nEXPECTED JSON SCHEMA:\n{json.dumps(expected_schema, indent=2)}"
+
+    try:
+        raw_json = await provider.generate_structured_response(system_prompt, user_prompt, expected_schema)
+        return ChatResponse(**raw_json)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+from fastapi import File, UploadFile
 
 @router.post("/feed-recommendation", response_model=FeedRecommendationResponse)
 async def get_feed_recommendation(
@@ -208,32 +244,78 @@ Stats:
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/chat", response_model=ChatResponse)
-async def get_ai_chat(
-    payload: ChatRequest,
+from fastapi import File, UploadFile
+from app.schemas.ai import (
+    VoiceObservationResponse,
+    HarvestOptimizationRequest,
+    HarvestOptimizationResponse
+)
+# ... imports continued
+
+@router.post("/voice-record", response_model=VoiceObservationResponse)
+async def process_voice_record(
+    file: UploadFile = File(...),
     current_user: Any = Depends(get_current_user)
 ):
     """
-    6. General Conversational Advice
-    Safety conversational buffer housing East-African contextual memory buffers.
+    7. Voice-to-Record Observations
+    Transcribes audio and extracts structured farm observations.
+    """
+    provider = get_ai_provider()
+    audio_bytes = await file.read()
+    
+    # 1. Transcribe
+    transcript = await provider.transcribe_audio(audio_bytes, file.filename)
+    
+    # 2. Extract Structure
+    system_prompt = """
+You are an expert East African poultry management assistant.
+Extract structured observations from the following transcript.
+Look for: mortality counts, bird symptoms, mentioned equipment, or feed issues.
+Return response STRICTLY as a JSON object matching the requested schema.
+"""
+    user_prompt = f"Transcript: {transcript}"
+    expected_schema = VoiceObservationResponse.model_json_schema()
+    
+    try:
+        raw_json = await provider.generate_structured_response(system_prompt, user_prompt, expected_schema)
+        # Ensure transcript is included in response
+        raw_json["transcript"] = transcript
+        return VoiceObservationResponse(**raw_json)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Voice Analysis Error: {str(e)}")
+
+@router.post("/harvest-optimization", response_model=HarvestOptimizationResponse)
+async def get_harvest_optimization(
+    payload: HarvestOptimizationRequest,
+    current_user: Any = Depends(get_current_user)
+):
+    """
+    8. Predictive Harvest Profit-Maximizer
+    Calculates the best day to sell birds based on FCR, feed cost, and market weight.
     """
     provider = get_ai_provider()
     system_prompt = """
-You are a helpful East African poultry farming expert.
-Provide safe, practical advice for raising broilers securely.
+You are an expert East African poultry economist.
+Analyze the provided flock data and market prices.
+Predict the optimal harvest date (in days of age) where profit is maximized.
+Profit = (Weight * Price) - (Feed Consumed * Feed Cost) - Other Costs.
+Note that FCR increases and growth rate slows as birds age past 42 days.
 Return response STRICTLY as a JSON object matching the requested schema.
 """
-    user_prompt = payload.message
-    if payload.history:
-         # Optionally inject history into prompt context for memory buffering
-         hist_str = "\n".join([f"{h.role.upper()}: {h.content}" for h in payload.history])
-         user_prompt = f"Chat History:\n{hist_str}\n\nUser: {payload.message}"
-
-    expected_schema = ChatResponse.model_json_schema()
-    system_prompt += f"\n\nEXPECTED JSON SCHEMA:\n{json.dumps(expected_schema, indent=2)}"
-
+    user_prompt = f"""
+Flock Data:
+- ID: {payload.flock_id}
+- Age: {payload.current_age_days} days
+- Weight: {payload.current_avg_weight_kg} kg
+- Breed: {payload.breed}
+- Feed Cost: {payload.feed_cost_per_kg} KES/kg
+- Expected Bird Price: {payload.expected_sale_price_per_kg} KES/kg
+"""
+    expected_schema = HarvestOptimizationResponse.model_json_schema()
+    
     try:
         raw_json = await provider.generate_structured_response(system_prompt, user_prompt, expected_schema)
-        return ChatResponse(**raw_json)
+        return HarvestOptimizationResponse(**raw_json)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Optimization Error: {str(e)}")

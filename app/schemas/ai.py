@@ -86,3 +86,24 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str = Field(..., description="Structured safe answer content")
     actionable_highlights: List[str] = Field(..., description="Bullet point buffers highlighting action steps")
+class VoiceObservationResponse(BaseModel):
+    transcript: str = Field(..., description="The raw transcription of the audio")
+    mortality_count: Optional[int] = Field(None, description="Extracted mortality count if mentioned")
+    observations: List[str] = Field(..., description="Extracted symptoms or observations")
+    detected_entities: List[str] = Field(..., description="Mentioned flocks, medications, or equipment")
+    suggested_action: str = Field(..., description="AI suggested next step based on observation")
+
+class HarvestOptimizationRequest(BaseModel):
+    flock_id: UUID4
+    current_avg_weight_kg: float
+    feed_cost_per_kg: float
+    expected_sale_price_per_kg: float
+    current_age_days: int
+    breed: str
+
+class HarvestOptimizationResponse(BaseModel):
+    optimal_harvest_age_days: int = Field(..., description="The predicted age for maximum profit")
+    projected_profit_at_optimal: float = Field(..., description="Estimated profit if harvested at optimal age")
+    daily_profit_trend: List[Dict[str, float]] = Field(..., description="Projected profit per day for the next 7 days")
+    reasoning: str = Field(..., description="Explanation of why this date is optimal (feed costs vs weight gain)")
+    risk_factors: List[str] = Field(..., description="Potential risks of waiting (e.g. mortality spike at late age)")

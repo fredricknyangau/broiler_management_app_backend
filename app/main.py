@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from app.config import settings
-from app.api.v1 import auth, flocks, daily_checks, finance, inventory, biosecurity, alerts, api_keys, events, health, market, admin, data, people, analytics, billing, audit, resources, settings as settings_router, tasks, farms, ai
+from app.api.v1 import auth, flocks, daily_checks, finance, inventory, biosecurity, alerts, api_keys, events, health, market, admin, data, people, analytics, billing, audit, resources, settings as settings_router, tasks, farms, ai, community
 import structlog
 from app.core.logging import setup_logging
 
@@ -66,6 +66,7 @@ app.include_router(resources.router, prefix=f"{settings.API_V1_PREFIX}/resources
 app.include_router(settings_router.router, prefix=f"{settings.API_V1_PREFIX}/settings", tags=["Settings"])
 app.include_router(tasks.router, prefix=f"{settings.API_V1_PREFIX}/tasks", tags=["Tasks"])
 app.include_router(ai.router, prefix=f"{settings.API_V1_PREFIX}/ai", tags=["AI Advisory"])
+app.include_router(community.router, prefix=f"{settings.API_V1_PREFIX}/community", tags=["Community"])
 
 @app.get("/")
 async def root():

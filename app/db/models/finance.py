@@ -19,6 +19,7 @@ class Expenditure(Base, UUIDMixin, TimestampMixin):
     unit = Column(String(20), nullable=True)
     receipt_image = Column(String(255), nullable=True, doc="URL/path to receipt image")
     mpesa_transaction_id = Column(String(50), nullable=True)
+    checkout_request_id = Column(String(50), nullable=True)
 
     # Relationships
     flock = relationship("Flock", backref="expenditures")

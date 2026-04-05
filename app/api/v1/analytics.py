@@ -16,7 +16,31 @@ from app.db.models.inventory import InventoryItem
 from app.db.models.biosecurity import BiosecurityCheck
 from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType
 
+from app.services.analytics_service import AnalyticsService
+
 router = APIRouter()
+
+
+@router.get("/benchmarks")
+async def get_benchmarks(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """
+    Get regional benchmarks for the current user's county.
+    """
+    if not current_user.county:
+        return {
+            "county": None,
+            "fcr_avg": 0,
+            "mortality_avg": 0,
+            "user_count": 0,
+            "message": "Update your profile with a County to see benchmarks."
+        }
+    
+    service = AnalyticsService(db)
+    result = await service.get_regional_benchmarks(current_user.county)
+    return result
 
 @router.get("/dashboard-metrics")
 async def get_dashboard_metrics(

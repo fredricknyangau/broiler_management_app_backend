@@ -181,7 +181,9 @@ async def mpesa_callback(request: Request, db: AsyncSession = Depends(get_db)):
             return {"status": "processed", "result_code": result_code}
 
         # If not subscription, try Sale lookup
-        from app.db.models.finance import Sale
+        from app.db.models.finance import Sale, Expenditure
+        from app.db.models.inventory import InventoryItem
+        
         result_sale = await db.execute(select(Sale).filter(
             Sale.checkout_request_id == checkout_request_id
         ))
@@ -189,7 +191,6 @@ async def mpesa_callback(request: Request, db: AsyncSession = Depends(get_db)):
 
         if sale:
             if result_code == 0:
-                # Payment Successful for Sale
                 print(f"Verifying sale for reference: {sale.id}")
                 callback_metadata = stk_callback.get('CallbackMetadata', {})
                 items = callback_metadata.get('Item', [])
@@ -197,14 +198,37 @@ async def mpesa_callback(request: Request, db: AsyncSession = Depends(get_db)):
                      if element.get('Name') == 'MpesaReceiptNumber':
                           sale.mpesa_transaction_id = element.get('Value')
                           break
-                print(f"Sale {sale.id} verified with Transaction ID: {sale.mpesa_transaction_id}")
-            else:
-                print(f"Sale payment failed or cancelled for reference {sale.id}: {result_desc}")
-            
             await db.commit()
             return {"status": "processed", "result_code": result_code}
 
-        print(f"No subscription or sale found for CheckoutRequestID: {checkout_request_id}")
+        # Try Expenditure lookup (Supplies / Marketplace)
+        result_exp = await db.execute(select(Expenditure).filter(
+            Expenditure.checkout_request_id == checkout_request_id
+        ))
+        exp = result_exp.scalars().first()
+
+        if exp:
+            if result_code == 0:
+                print(f"Verifying supply order: {exp.id}")
+                callback_metadata = stk_callback.get('CallbackMetadata', {})
+                items = callback_metadata.get('Item', [])
+                for element in items:
+                     if element.get('Name') == 'MpesaReceiptNumber':
+                          exp.mpesa_transaction_id = element.get('Value')
+                          break
+                
+                # Automated Inventory Update
+                if exp.inventory_item_id and exp.quantity:
+                    result_item = await db.execute(select(InventoryItem).filter(InventoryItem.id == exp.inventory_item_id))
+                    item = result_item.scalars().first()
+                    if item:
+                        item.current_stock += exp.quantity
+                        print(f"Stock incremented for {item.name}: +{exp.quantity}")
+
+            await db.commit()
+            return {"status": "processed", "result_code": result_code}
+
+        print(f"No match for CheckoutRequestID: {checkout_request_id}")
         return {"status": "ignored", "reason": "No matching entity found"}
 
     except Exception as e:
