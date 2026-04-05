@@ -8,10 +8,9 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from app.api.deps import get_db, get_current_admin_user
-from app.db.models.user import User, UserRole
+from app.db.models.user import User
 from app.schemas.user import UserResponse, UserUpdate
 from app.services.audit_service import log_action
-from app.db.models.role import Role
 
 router = APIRouter()
 
