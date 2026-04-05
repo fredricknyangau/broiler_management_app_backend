@@ -2,6 +2,7 @@ from pydantic import BaseModel, field_validator
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
+from decimal import Decimal
 
 class SubscriptionCreate(BaseModel):
     # plan_type: "PROFESSIONAL" | "ENTERPRISE" (STARTER is default/free)
@@ -30,8 +31,8 @@ class PlanResponse(BaseModel):
     plan_type: str
     name: str
     description: Optional[str]
-    monthly_price: str
-    yearly_price: str
+    monthly_price: Decimal
+    yearly_price: Decimal
     features: List[str]
     is_active: bool
     popular: bool
@@ -59,8 +60,8 @@ class PlanCreate(BaseModel):
     plan_type: str
     name: str
     description: Optional[str] = None
-    monthly_price: str = "0"
-    yearly_price: str = "0"
+    monthly_price: Decimal = Decimal("0")
+    yearly_price: Decimal = Decimal("0")
     features: List[str] = []
     is_active: bool = True
     popular: bool = False
@@ -69,8 +70,8 @@ class PlanCreate(BaseModel):
 class PlanUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    monthly_price: Optional[str] = None
-    yearly_price: Optional[str] = None
+    monthly_price: Optional[Decimal] = None
+    yearly_price: Optional[Decimal] = None
     features: Optional[List[str]] = None
     is_active: Optional[bool] = None
     popular: Optional[bool] = None
@@ -79,5 +80,5 @@ class PlanUpdate(BaseModel):
 class SubscriptionOverride(BaseModel):
     plan_type: str
     end_date: Optional[datetime] = None
-    amount: Optional[str] = "0"
+    amount: Optional[Decimal] = Decimal("0")
     status: Optional[str] = "ACTIVE"

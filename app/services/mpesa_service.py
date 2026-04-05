@@ -2,45 +2,63 @@ import httpx
 import base64
 from datetime import datetime
 from app.config import settings
-import logging
+import structlog
+from app.config import settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
-# You would technically put these in settings
-MPESA_CONSUMER_KEY = "PLACEHOLDER_KEY"
-MPESA_CONSUMER_SECRET = "PLACEHOLDER_SECRET"
-MPESA_PASSKEY = "PLACEHOLDER_PASSKEY"
-MPESA_SHORTCODE = "174379" # Test shortcode
-MPESA_CALLBACK_URL = f"{settings.API_V1_PREFIX}/billing/mpesa/callback" 
+# Base URLs — switch to production URL when deploying
+_MPESA_BASE = "https://sandbox.safaricom.co.ke"
+
 
 class MpesaService:
-    def __init__(self):
-        self.auth_token = None
+    """
+    Thin wrapper around Safaricom Daraja API.
 
-    async def _get_auth_token(self):
-        auth_url = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
-        try:
-            logger.info(f"Attempting M-Pesa Auth: {auth_url}")
-            logger.info(f"Key: {settings.MPESA_CONSUMER_KEY[:5]}... | Secret: {settings.MPESA_CONSUMER_SECRET[:5]}...")
-            
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    auth_url, 
-                    auth=(settings.MPESA_CONSUMER_KEY, settings.MPESA_CONSUMER_SECRET)
-                )
-                response.raise_for_status()
-                return response.json().get('access_token')
-        except Exception as e:
-            logger.error(f"Error fetching auth token: {e}")
-            raise e
+    All credentials are sourced exclusively from ``settings`` (pydantic-settings → .env).
+    No hardcoded placeholder values exist here; the app will refuse to start if the
+    required env-vars are missing (enforced via pydantic-settings validation).
+    """
 
-    async def initiate_stk_push(self, phone: str, amount: int, reference: str):
-        logger.info(f"Initiating STK Push to {phone} for {amount} KES. Ref: {reference}")
-        
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    async def _get_auth_token(self) -> str:
+        """Fetch a short-lived OAuth2 bearer token from Safaricom."""
+        auth_url = f"{_MPESA_BASE}/oauth/v1/generate?grant_type=client_credentials"
+        logger.info("Fetching M-Pesa OAuth token")
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.get(
+                auth_url,
+                auth=(settings.MPESA_CONSUMER_KEY, settings.MPESA_CONSUMER_SECRET),
+            )
+            response.raise_for_status()
+            token = response.json().get("access_token")
+            if not token:
+                raise ValueError("M-Pesa auth response missing access_token")
+            return token
+
+    async def initiate_stk_push(self, phone: str, amount: int, reference: str) -> dict:
+        """
+        Initiate an M-Pesa STK Push (Lipa na M-Pesa Online).
+
+        Args:
+            phone:     Kenyan phone number in 254XXXXXXXXX format.
+            amount:    Amount in KES (integer).
+            reference: Unique account reference (e.g. "SALE-<uuid>").
+
+        Returns:
+            Safaricom response dict containing CheckoutRequestID.
+
+        Raises:
+            Exception: On API error, with the upstream response body included.
+        """
+        logger.info(
+            "Initiating STK Push",
+            extra={"phone": phone[-4:].zfill(len(phone)), "amount": amount, "ref": reference},
+        )
+
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         password_str = f"{settings.MPESA_SHORTCODE}{settings.MPESA_PASSKEY}{timestamp}"
         password = base64.b64encode(password_str.encode()).decode()
-        
+
         payload = {
             "BusinessShortCode": settings.MPESA_SHORTCODE,
             "Password": password,
@@ -52,33 +70,80 @@ class MpesaService:
             "PhoneNumber": phone,
             "CallBackURL": settings.MPESA_CALLBACK_URL,
             "AccountReference": reference,
-            "TransactionDesc": "Subscription Payment"
+            "TransactionDesc": "KukuFiti Payment",
         }
-        
+
         try:
             token = await self._get_auth_token()
-            headers = { "Authorization": f"Bearer {token}" }
-            
-            logger.info(f"Sending STK Push Payload: {payload}")
-            
-            async with httpx.AsyncClient() as client:
+            headers = {"Authorization": f"Bearer {token}"}
+            async with httpx.AsyncClient(timeout=30) as client:
                 response = await client.post(
-                    "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest", 
-                    json=payload, 
-                    headers=headers
+                    f"{_MPESA_BASE}/mpesa/stkpush/v1/processrequest",
+                    json=payload,
+                    headers=headers,
                 )
                 response.raise_for_status()
-                logger.info(f"STK Push Response: {response.json()}")
+                logger.info("STK Push accepted by Safaricom", extra={"ref": reference})
                 return response.json()
-                
+
         except httpx.HTTPStatusError as e:
-            logger.error(f"STK Push failed: {e}")
             error_body = e.response.text
-            logger.error(f"Response body: {error_body}")
-            # Raise a new exception with the response body so top-level can see it
-            raise Exception(f"M-Pesa API Error: {error_body}")
+            logger.error("STK Push rejected", extra={"body": error_body})
+            raise Exception(f"M-Pesa API Error: {error_body}") from e
         except Exception as e:
-            logger.error(f"STK Push failed: {e}")
-            raise e
+            logger.error("STK Push failed unexpectedly: %s", e)
+            raise
+
+    async def query_stk_status(self, checkout_request_id: str) -> dict:
+        """
+        Query the status of an STK Push transaction directly from Safaricom.
+
+        This is used for CALLBACK VERIFICATION: after receiving a callback, call
+        this method to re-confirm the transaction status server-side before
+        marking any subscription or sale as paid. This prevents fake callbacks.
+
+        Args:
+            checkout_request_id: The CheckoutRequestID returned by initiate_stk_push.
+
+        Returns:
+            Safaricom query response dict. ResultCode == "0" means success.
+        """
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        password_str = f"{settings.MPESA_SHORTCODE}{settings.MPESA_PASSKEY}{timestamp}"
+        password = base64.b64encode(password_str.encode()).decode()
+
+        payload = {
+            "BusinessShortCode": settings.MPESA_SHORTCODE,
+            "Password": password,
+            "Timestamp": timestamp,
+            "CheckoutRequestID": checkout_request_id,
+        }
+
+        try:
+            token = await self._get_auth_token()
+            headers = {"Authorization": f"Bearer {token}"}
+            async with httpx.AsyncClient(timeout=15) as client:
+                response = await client.post(
+                    f"{_MPESA_BASE}/mpesa/stkpushquery/v1/query",
+                    json=payload,
+                    headers=headers,
+                )
+                response.raise_for_status()
+                result = response.json()
+                logger.info(
+                    "STK Query result",
+                    extra={"checkout_id": checkout_request_id, "code": result.get("ResultCode")},
+                )
+                return result
+
+        except httpx.HTTPStatusError as e:
+            error_body = e.response.text
+            logger.error("STK Query failed", extra={"body": error_body})
+            raise Exception(f"M-Pesa Query Error: {error_body}") from e
+        except Exception as e:
+            logger.error("STK Query failed unexpectedly: %s", e)
+            raise
+
 
 mpesa_service = MpesaService()
+

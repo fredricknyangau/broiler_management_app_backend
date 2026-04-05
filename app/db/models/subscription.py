@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Enum, ForeignKey, Boolean
+from sqlalchemy import Column, String, DateTime, Enum, ForeignKey, Boolean, DECIMAL
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import enum
@@ -23,7 +23,7 @@ class Subscription(Base, UUIDMixin, TimestampMixin):
     status = Column(String, nullable=False, default=SubscriptionStatus.PENDING)
     start_date = Column(DateTime, nullable=True)
     end_date = Column(DateTime, nullable=True)
-    amount = Column(String, nullable=True) # e.g. "500.00"
+    amount = Column(DECIMAL(10, 2), nullable=True, doc="Amount in KES")
     mpesa_reference = Column(String, nullable=True, unique=True, index=True)
     checkout_request_id = Column(String, nullable=True, unique=True, index=True)
     phone_number = Column(String, nullable=True)
@@ -37,8 +37,8 @@ class SubscriptionPlan(Base, UUIDMixin, TimestampMixin):
     plan_type = Column(String, unique=True, nullable=False, index=True) # STARTER, PROFESSIONAL, ENTERPRISE
     name = Column(String, nullable=False)
     description = Column(String, nullable=True)
-    monthly_price = Column(String, nullable=False, default="0")
-    yearly_price = Column(String, nullable=False, default="0")
+    monthly_price = Column(DECIMAL(10, 2), nullable=False, default=0.00)
+    yearly_price = Column(DECIMAL(10, 2), nullable=False, default=0.00)
     features = Column(JSONB, nullable=False, default=[]) # List of feature keys
     is_active = Column(Boolean, default=True)
     popular = Column(Boolean, default=False)

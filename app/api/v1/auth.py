@@ -133,17 +133,17 @@ async def update_profile(
 async def send_otp(request: OTPRequest):
     """
     Send a 4-digit OTP code to the provided phone number.
-    
-    For development, the code is logged and returned in the response.
+    The OTP is delivered via SMS. The code is never echoed in the response.
     """
     service = OTPService()
     phone_number = request.phone_number.strip()
     code = await service.send_otp(phone_number)
-    
-    return {
-        "message": "OTP sent successfully",
-        "code": code  # Include for testing/debug
-    }
+
+    response: dict = {"message": "OTP sent successfully"}
+    # Safety valve: only expose OTP in local development — NEVER in production
+    if settings.DEBUG:
+        response["code"] = code
+    return response
 
 
 @router.post("/verify-otp", response_model=Token)

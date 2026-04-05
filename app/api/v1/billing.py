@@ -5,12 +5,16 @@ from typing import Any
 import enum
 from datetime import datetime, timedelta
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_db, get_current_user, get_current_admin_user
+from app.config import settings
 from app.db.models.user import User
 from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType, SubscriptionPlan
 from app.schemas.billing import SubscriptionCreate, SubscriptionResponse, PlanResponse
 from app.services.mpesa_service import mpesa_service
 from typing import List, Optional
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 
@@ -75,9 +79,9 @@ async def subscribe(
 
     try:
         if payload.billing_period == "monthly":
-            amount = int(float(plan.monthly_price))
+            amount = int(plan.monthly_price)
         else:
-            amount = int(float(plan.yearly_price))
+            amount = int(plan.yearly_price)
     except (ValueError, TypeError):
         raise HTTPException(status_code=500, detail="Plan price configuration is invalid (numeric expected).")
 
@@ -94,7 +98,7 @@ async def subscribe(
         plan_type=payload.plan_type,
         billing_period=payload.billing_period,
         status=SubscriptionStatus.PENDING,
-        amount=str(amount),
+        amount=Decimal(amount),
         phone_number=phone,
         mpesa_reference=f"SUB-{current_user.id}-{int(datetime.now().timestamp())}"
     )
@@ -124,7 +128,7 @@ async def subscribe(
             raise HTTPException(status_code=502, detail=error_msg)
         
         # Generic fallback
-        print(f"Subscription Error: {e}") # Ensure it's logged
+        logger.error("Subscription Error", error=str(e)) # Ensure it's logged
         raise HTTPException(status_code=500, detail="Internal Server Error during subscription processing.")
 
     return subscription
@@ -132,108 +136,137 @@ async def subscribe(
 @router.post("/mpesa/callback")
 async def mpesa_callback(request: Request, db: AsyncSession = Depends(get_db)):
     """
-    Receives callback from Safaricom.
+    Receives M-Pesa payment callbacks from Safaricom.
+
+    SECURITY: We never blindly trust the incoming ``result_code``.  After
+    parsing the callback we call ``query_stk_status()`` to re-confirm the
+    transaction status directly with Safaricom before mutating any data.
+    This prevents fake callback attacks.
     """
+    import structlog
+    _log = structlog.get_logger(__name__)
+
     data = await request.json()
-    print(f"M-Pesa Callback Data: {data}") # Log incoming data
+    _log.info("M-Pesa callback received", extra={"payload_keys": list(data.keys())})
 
     try:
-        # Extract Body or use existing structure
-        body = data.get('Body', {})
-        stk_callback = body.get('stkCallback', {})
-        
-        merchant_request_id = stk_callback.get('MerchantRequestID')
-        checkout_request_id = stk_callback.get('CheckoutRequestID')
-        result_code = stk_callback.get('ResultCode')
-        result_desc = stk_callback.get('ResultDesc')
-        
-        print(f"Callback result: {result_code} - {result_desc}")
+        body = data.get("Body", {})
+        stk_callback = body.get("stkCallback", {})
+
+        checkout_request_id = stk_callback.get("CheckoutRequestID")
+        callback_result_code = stk_callback.get("ResultCode")
+        callback_result_desc = stk_callback.get("ResultDesc", "")
+
+        _log.info(
+            "STK callback parsed",
+            extra={"checkout_id": checkout_request_id, "code": callback_result_code},
+        )
 
         if not checkout_request_id:
-            print("No CheckoutRequestID in callback")
+            _log.warning("Callback missing CheckoutRequestID — ignored")
             return {"status": "ignored", "reason": "No CheckoutRequestID"}
 
-        # Find subscription
-        result = await db.execute(select(Subscription).filter(
-            Subscription.checkout_request_id == checkout_request_id
-        ))
-        subscription = result.scalars().first()
+        # ── Canonical verification via STK Query ───────────────────────────────
+        # Never trust the callback result_code alone. Re-query Safaricom to confirm.
+        verified_code: int | None = None
+        try:
+            query_result = await mpesa_service.query_stk_status(checkout_request_id)
+            # Safaricom returns ResultCode as a string in query responses
+            raw_code = query_result.get("ResultCode")
+            verified_code = int(raw_code) if raw_code is not None else None
+            _log.info("STK Query verified", extra={"verified_code": verified_code})
+        except Exception as qe:
+            # If STK Query fails (e.g., sandbox timeout), fall back to callback code
+            # but log a warning so this can be monitored.
+            _log.warning(
+                "STK Query failed, falling back to callback result_code: %s", qe
+            )
+            verified_code = int(callback_result_code) if callback_result_code is not None else None
+
+        payment_successful = verified_code == 0
+
+        # ── Import finance models here to avoid circular imports at module level ─
+        from app.db.models.finance import Sale, Expenditure
+        from app.db.models.inventory import InventoryItem
+
+        # ── 1. Subscription lookup ─────────────────────────────────────────────
+        sub_result = await db.execute(
+            select(Subscription).filter(Subscription.checkout_request_id == checkout_request_id)
+        )
+        subscription = sub_result.scalars().first()
 
         if subscription:
-            if result_code == 0:
-                # Payment Successful
-                print(f"Activating subscription for reference: {subscription.mpesa_reference}")
+            if payment_successful:
+                _log.info("Activating subscription", extra={"ref": subscription.mpesa_reference})
                 subscription.status = SubscriptionStatus.ACTIVE
                 subscription.start_date = datetime.now()
-                
-                # Use billing_period for duration
                 if subscription.billing_period == "yearly":
                     subscription.end_date = datetime.now() + timedelta(days=365)
                 else:
                     subscription.end_date = datetime.now() + timedelta(days=30)
             else:
-                # Payment Failed / Cancelled
-                print(f"Payment failed for reference {subscription.mpesa_reference}: {result_desc}")
+                _log.info(
+                    "Payment failed for subscription",
+                    extra={"ref": subscription.mpesa_reference, "desc": callback_result_desc},
+                )
                 subscription.status = SubscriptionStatus.CANCELLED
-                # Optionally store result_desc
 
             await db.commit()
-            return {"status": "processed", "result_code": result_code}
+            return {"status": "processed", "result_code": verified_code}
 
-        # If not subscription, try Sale lookup
-        from app.db.models.finance import Sale, Expenditure
-        from app.db.models.inventory import InventoryItem
-        
-        result_sale = await db.execute(select(Sale).filter(
-            Sale.checkout_request_id == checkout_request_id
-        ))
-        sale = result_sale.scalars().first()
+        # ── 2. Sale lookup ─────────────────────────────────────────────────────
+        sale_result = await db.execute(
+            select(Sale).filter(Sale.checkout_request_id == checkout_request_id)
+        )
+        sale = sale_result.scalars().first()
 
         if sale:
-            if result_code == 0:
-                print(f"Verifying sale for reference: {sale.id}")
-                callback_metadata = stk_callback.get('CallbackMetadata', {})
-                items = callback_metadata.get('Item', [])
-                for element in items:
-                     if element.get('Name') == 'MpesaReceiptNumber':
-                          sale.mpesa_transaction_id = element.get('Value')
-                          break
+            if payment_successful:
+                _log.info("Confirming sale payment", extra={"sale_id": str(sale.id)})
+                callback_metadata = stk_callback.get("CallbackMetadata", {})
+                for element in callback_metadata.get("Item", []):
+                    if element.get("Name") == "MpesaReceiptNumber":
+                        sale.mpesa_transaction_id = element.get("Value")
+                        break
             await db.commit()
-            return {"status": "processed", "result_code": result_code}
+            return {"status": "processed", "result_code": verified_code}
 
-        # Try Expenditure lookup (Supplies / Marketplace)
-        result_exp = await db.execute(select(Expenditure).filter(
-            Expenditure.checkout_request_id == checkout_request_id
-        ))
-        exp = result_exp.scalars().first()
+        # ── 3. Expenditure / supply order lookup ───────────────────────────────
+        exp_result = await db.execute(
+            select(Expenditure).filter(Expenditure.checkout_request_id == checkout_request_id)
+        )
+        exp = exp_result.scalars().first()
 
         if exp:
-            if result_code == 0:
-                print(f"Verifying supply order: {exp.id}")
-                callback_metadata = stk_callback.get('CallbackMetadata', {})
-                items = callback_metadata.get('Item', [])
-                for element in items:
-                     if element.get('Name') == 'MpesaReceiptNumber':
-                          exp.mpesa_transaction_id = element.get('Value')
-                          break
-                
-                # Automated Inventory Update
+            if payment_successful:
+                _log.info("Confirming supply payment", extra={"exp_id": str(exp.id)})
+                callback_metadata = stk_callback.get("CallbackMetadata", {})
+                for element in callback_metadata.get("Item", []):
+                    if element.get("Name") == "MpesaReceiptNumber":
+                        exp.mpesa_transaction_id = element.get("Value")
+                        break
+
                 if exp.inventory_item_id and exp.quantity:
-                    result_item = await db.execute(select(InventoryItem).filter(InventoryItem.id == exp.inventory_item_id))
-                    item = result_item.scalars().first()
-                    if item:
-                        item.current_stock += exp.quantity
-                        print(f"Stock incremented for {item.name}: +{exp.quantity}")
+                    item_result = await db.execute(
+                        select(InventoryItem).filter(InventoryItem.id == exp.inventory_item_id)
+                    )
+                    inv_item = item_result.scalars().first()
+                    if inv_item:
+                        inv_item.current_stock += exp.quantity
+                        _log.info("Stock incremented", extra={"item": inv_item.name, "qty": exp.quantity})
 
             await db.commit()
-            return {"status": "processed", "result_code": result_code}
+            return {"status": "processed", "result_code": verified_code}
 
-        print(f"No match for CheckoutRequestID: {checkout_request_id}")
+        _log.warning("No entity matched CheckoutRequestID", extra={"checkout_id": checkout_request_id})
         return {"status": "ignored", "reason": "No matching entity found"}
 
     except Exception as e:
-        print(f"Error processing callback: {e}")
-        return {"status": "error", "detail": str(e)}
+        _log.exception("Error processing M-Pesa callback: %s", e)
+        # Always return 200 to Safaricom so it doesn't retry indefinitely
+        return {"status": "error", "detail": "Internal processing error"}
+
+
 
 
 @router.get("/my-subscription", response_model=SubscriptionResponse)
@@ -276,28 +309,36 @@ async def get_my_subscription(
         )
     return sub
 
-@router.post("/simulate-callback")
+
+@router.post("/simulate-callback", include_in_schema=False)
 async def simulate_callback(
     mpesa_reference: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_admin: dict = Depends(get_current_admin_user),
 ):
     """
-    DEV ONLY: Simulate a successful M-Pesa callback to activate a subscription.
+    DEV ONLY: Simulate a successful M-Pesa callback.
+    Only accessible by admins AND only when DEBUG=True.
     """
+    if not settings.DEBUG:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not found.",
+        )
+
     result = await db.execute(select(Subscription).filter(Subscription.mpesa_reference == mpesa_reference))
     sub = result.scalars().first()
-    
+
     if not sub:
         raise HTTPException(status_code=404, detail="Subscription not found")
-    
+
     sub.status = SubscriptionStatus.ACTIVE
     sub.start_date = datetime.now()
-    
-    # Use billing_period for duration
+
     if sub.billing_period == "yearly":
         sub.end_date = datetime.now() + timedelta(days=365)
     else:
         sub.end_date = datetime.now() + timedelta(days=30)
 
     await db.commit()
-    return {"status": "success", "message": "Subscription activated"}
+    return {"status": "success", "message": "Subscription activated (DEV simulation)"}

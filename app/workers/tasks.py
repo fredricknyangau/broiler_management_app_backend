@@ -61,17 +61,16 @@ async def evaluate_alerts_async(flock_id: str, check_date: str):
 def evaluate_alerts_task(flock_id: str, check_date: str):
     """
     Evaluates daily data to generate alerts.
+
+    Uses ``asyncio.run()`` which always creates a fresh event loop per invocation.
+    This is the correct pattern for bridging sync Celery workers to async SQLAlchemy.
+    ``asyncio.get_event_loop()`` is deprecated in Python 3.10+ and will fail inside
+    Celery thread pools where no running loop exists.
     """
     logger.info(f"Evaluating alerts for flock {flock_id} on {check_date}")
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-    loop.run_until_complete(evaluate_alerts_async(flock_id, check_date))
-    
+    asyncio.run(evaluate_alerts_async(flock_id, check_date))
     return {"status": "evaluated", "flock_id": flock_id}
+
 
 
 @celery_app.task

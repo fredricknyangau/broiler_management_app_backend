@@ -38,10 +38,11 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
     
-    # Set RLS context before lookup so the policy allows seeing our own user row
-    # We use user_id from token to identify the session
+    # Set RLS context using parameterized query — never interpolate user-controlled
+    # values directly into SQL strings (SQL injection via SET LOCAL).
     await db.execute(
-        text(f"SET LOCAL app.current_user_id = '{user_id}'")
+        text("SET LOCAL app.current_user_id = :uid"),
+        {"uid": str(user_id)},
     )
     
     # Async query
@@ -67,11 +68,12 @@ async def get_current_user(
 async def set_tenant_context(db: AsyncSession, user: User):
     """
     Set PostgreSQL session variables for RLS.
-    Call this after getting current_user in protected routes or 
+    Call this after getting current_user in protected routes or
     during initial authentication lookups.
     """
     await db.execute(
-        text(f"SET LOCAL app.current_user_id = '{str(user.id)}'")
+        text("SET LOCAL app.current_user_id = :uid"),
+        {"uid": str(user.id)},
     )
     if user.role == UserRole.ADMIN or user.is_superuser:
         await db.execute(text("SET LOCAL app.is_admin = 'true'"))
@@ -220,3 +222,34 @@ async def check_enterprise_subscription(
         )
         
     return True
+
+
+async def get_plan_type(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> str:
+    """
+    Returns the effective PlanType string for the current user.
+
+    Priority:
+      1. ADMIN / superuser  → always ENTERPRISE (no DB hit needed)
+      2. Active subscription (direct or inherited via Farm membership) → use plan_type
+      3. Default → STARTER
+
+    Use this as a FastAPI dependency instead of copy-pasting the subscription
+    lookup block in every router that needs plan-gating.
+
+    Example::
+
+        @router.get("/analytics")
+        async def my_route(plan: str = Depends(get_plan_type)):
+            if plan == PlanType.STARTER:
+                raise HTTPException(403, detail="Requires Professional Plan")
+    """
+    from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType
+
+    if current_user.role == UserRole.ADMIN or current_user.is_superuser:
+        return PlanType.ENTERPRISE
+
+    sub = await _get_effective_subscription(db, current_user)
+    return sub.plan_type if sub else PlanType.STARTER

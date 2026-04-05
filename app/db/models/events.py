@@ -13,9 +13,13 @@ class BaseEvent(UUIDMixin, TimestampMixin):
     event_id = Column(UUID(as_uuid=True), unique=True, nullable=False, doc="Idempotency key provided by client")
     flock_id = Column(UUID(as_uuid=True), nullable=False)
     event_date = Column(Date, nullable=False)
-    event_time = Column(Time, default=datetime.now().time)
+    # Use a lambda so the default is evaluated per-row at INSERT time,
+    # not once when the module is imported (which would freeze all events
+    # to the server startup timestamp).
+    event_time = Column(Time, default=lambda: datetime.now().time())
 
     __abstract__ = True
+
 
 
 class MortalityEvent(Base, BaseEvent):
@@ -114,7 +118,6 @@ class WeightMeasurementEvent(Base, BaseEvent):
     __tablename__ = "weight_measurement_events"
 
     flock_id = Column(UUID(as_uuid=True), ForeignKey("flocks.id", ondelete="CASCADE"), nullable=False)
-    measurement_date = Column(Date, nullable=False)
     sample_size = Column(Integer, nullable=False, doc="Number of birds weighed")
     average_weight_grams = Column(DECIMAL(10, 2), nullable=False, doc="Average weight in grams")
     min_weight_grams = Column(DECIMAL(10, 2))
@@ -129,9 +132,9 @@ class WeightMeasurementEvent(Base, BaseEvent):
         CheckConstraint("sample_size > 0", name="positive_sample_size"),
         CheckConstraint("average_weight_grams > 0", name="positive_average_weight"),
         Index("ix_weight_measurement_events_flock_id", "flock_id"),
-        Index("ix_weight_measurement_events_measurement_date", "measurement_date"),
+        Index("ix_weight_measurement_events_event_date", "event_date"),
         Index("ix_weight_measurement_events_event_id", "event_id", unique=True),
     )
 
     def __repr__(self):
-        return f"<WeightMeasurementEvent(flock={self.flock_id}, date={self.measurement_date}, avg={self.average_weight_grams}g)>"
+        return f"<WeightMeasurementEvent(flock={self.flock_id}, date={self.event_date}, avg={self.average_weight_grams}g)>"
