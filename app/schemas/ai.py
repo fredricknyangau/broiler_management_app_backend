@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
-from typing import Literal
+from pydantic import BaseModel, Field, UUID4
+from typing import Literal, Dict
 
 class FeedRecommendationRequest(BaseModel):
     flock_age_days: int = Field(..., description="Age of the flock in days")
