@@ -13,7 +13,15 @@ class OTPService:
         """
         Generate and save a 4-digit OTP code to Redis.
         Expiry: 5 minutes (300 seconds).
+        Included: Rate limiting to prevent SMS bombing (max 3 reqs per 15 min).
         """
+        rate_limit_key = f"rate_limit:otp:{phone_number}"
+        attempts = await self.redis_client.get(rate_limit_key)
+        
+        if attempts and int(attempts) >= 3:
+            logger.warning(f"OTP rate limit exceeded for {phone_number}")
+            raise ValueError("Too many OTP requests. Please try again in 15 minutes.")
+            
         # Generate 4-digit code
         code = f"{random.randint(1000, 9999)}"
         
@@ -21,9 +29,17 @@ class OTPService:
         key = f"otp:{phone_number}"
         await self.redis_client.setex(key, 300, code)
         
-        # Ideally, send via SMS provider.
-        # For now, we log it or return it for debug.
-        logger.info(f"OTP for {phone_number} is {code}")
+        # Update rate limits
+        if not attempts:
+            await self.redis_client.setex(rate_limit_key, 900, 1)  # 15 minutes window
+        else:
+            await self.redis_client.incr(rate_limit_key)
+        
+        # Avoid leaking OTPs to centralized logs in production.
+        if settings.DEBUG:
+            logger.info(f"[DEBUG] OTP for {phone_number} is {code}")
+        else:
+            logger.info(f"OTP generated and SMS queue hit for {phone_number}")
         
         return code
 

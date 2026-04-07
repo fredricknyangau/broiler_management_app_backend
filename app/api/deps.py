@@ -41,7 +41,7 @@ async def get_current_user(
     # Set RLS context using parameterized query — never interpolate user-controlled
     # values directly into SQL strings (SQL injection via SET LOCAL).
     await db.execute(
-        text("SET LOCAL app.current_user_id = :uid"),
+        text("SELECT set_config('app.current_user_id', :uid, true)"),
         {"uid": str(user_id)},
     )
     
@@ -60,7 +60,7 @@ async def get_current_user(
     
     # Also set admin flag if applicable for global bypass policies
     if user.role == UserRole.ADMIN or user.is_superuser:
-        await db.execute(text("SET LOCAL app.is_admin = 'true'"))
+        await db.execute(text("SELECT set_config('app.is_admin', 'true', true)"))
     
     return user
 
@@ -72,11 +72,11 @@ async def set_tenant_context(db: AsyncSession, user: User):
     during initial authentication lookups.
     """
     await db.execute(
-        text("SET LOCAL app.current_user_id = :uid"),
+        text("SELECT set_config('app.current_user_id', :uid, true)"),
         {"uid": str(user.id)},
     )
     if user.role == UserRole.ADMIN or user.is_superuser:
-        await db.execute(text("SET LOCAL app.is_admin = 'true'"))
+        await db.execute(text("SELECT set_config('app.is_admin', 'true', true)"))
 
 
 async def set_rls_bypass(db: AsyncSession):
@@ -84,7 +84,7 @@ async def set_rls_bypass(db: AsyncSession):
     Enable RLS bypass for the current transaction.
     Used for critical auth lookups (registration, login by email/phone).
     """
-    await db.execute(text("SET LOCAL app.bypass_rls = 'on'"))
+    await db.execute(text("SELECT set_config('app.bypass_rls', 'on', true)"))
 
 
 def get_current_active_superuser(

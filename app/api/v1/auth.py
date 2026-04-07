@@ -137,7 +137,14 @@ async def send_otp(request: OTPRequest):
     """
     service = OTPService()
     phone_number = request.phone_number.strip()
-    code = await service.send_otp(phone_number)
+    
+    try:
+        code = await service.send_otp(phone_number)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=str(e)
+        )
 
     response: dict = {"message": "OTP sent successfully"}
     # Safety valve: only expose OTP in local development — NEVER in production
