@@ -73,9 +73,77 @@ def evaluate_alerts_task(flock_id: str, check_date: str):
 
 
 
+from app.db.models.events import MortalityEvent
+from app.db.models.finance import Sale
+
+async def _refresh_flock_stats_async() -> dict:
+    """
+    Recompute and log a summary of current bird counts, mortality, and revenue
+    for all active flocks across the system. Designed to run periodically (e.g. hourly)
+    as a health-check snapshot to catch data drift and alert generation delays.
+    """
+    from sqlalchemy import func
+    from app.db.models.flock import Flock as FlockModel
+
+    async with AsyncSessionLocal() as db:
+        try:
+            # Total active flocks
+            active_res = await db.execute(
+                select(func.count()).select_from(FlockModel).filter(FlockModel.status == "active")
+            )
+            active_count = active_res.scalar_one() or 0
+
+            # Total initial birds in active flocks
+            initial_res = await db.execute(
+                select(func.sum(FlockModel.initial_count)).filter(FlockModel.status == "active")
+            )
+            total_initial = initial_res.scalar() or 0
+
+            # Total recorded mortalities across active flocks
+            mort_res = await db.execute(
+                select(func.sum(MortalityEvent.count))
+                .join(FlockModel, FlockModel.id == MortalityEvent.flock_id)
+                .filter(FlockModel.status == "active")
+            )
+            total_mort = mort_res.scalar() or 0
+
+            # Total birds sold from active flocks
+            sales_res = await db.execute(
+                select(func.sum(Sale.quantity))
+                .join(FlockModel, FlockModel.id == Sale.flock_id)
+                .filter(FlockModel.status == "active")
+            )
+            total_sold = sales_res.scalar() or 0
+
+            current_birds = max(0, total_initial - total_mort - total_sold)
+            mortality_rate = round((total_mort / total_initial * 100), 2) if total_initial > 0 else 0
+
+            summary = {
+                "active_flocks": active_count,
+                "total_initial_birds": total_initial,
+                "total_mortalities": total_mort,
+                "total_sold": total_sold,
+                "current_birds": current_birds,
+                "mortality_rate_pct": mortality_rate,
+            }
+            logger.info(f"Flock stats refreshed: {summary}")
+            return summary
+
+        except Exception as e:
+            logger.error(f"Error during flock stats refresh: {e}")
+            return {}
+
+
 @celery_app.task
 def refresh_flock_stats_task():
-    """Placeholder for refreshing flock stats"""
-    logger.info("Refreshing flock stats")
-    # TODO: Add actual stats refresh logic
-    return {"status": "success"}
+    """
+    Periodically recomputes active flock stats (bird count, mortality rate, sales)
+    across all farmers and logs a system-wide snapshot.
+
+    Follows the same asyncio.run() bridging pattern as evaluate_alerts_task:
+    Celery workers are synchronous; asyncio.run() spawns a fresh event loop
+    per invocation so we can safely use AsyncSession inside a sync task.
+    """
+    logger.info("Starting flock stats refresh")
+    result = asyncio.run(_refresh_flock_stats_async())
+    return {"status": "success", **result}

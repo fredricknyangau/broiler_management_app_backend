@@ -98,6 +98,9 @@ class AnalyticsService:
         total_revenue_res = await self.db.execute(select(func.sum(Sale.total_amount)).filter(Sale.farmer_id == current_user.id))
         total_expenses_res = await self.db.execute(select(func.sum(Expenditure.amount)).filter(Expenditure.farmer_id == current_user.id))
         
+        total_revenue = total_revenue_res.scalar() or 0
+        total_expenses = total_expenses_res.scalar() or 0
+        
         # mortality global
         all_initial_res = await self.db.execute(select(func.sum(Flock.initial_count)).filter(Flock.farmer_id == current_user.id))
         all_mort_res = await self.db.execute(
@@ -111,9 +114,9 @@ class AnalyticsService:
         return {
             "active_flocks": active_flocks_count,
             "current_birds": max(0, total_current_birds),
-            "total_revenue": float(total_revenue_res.scalar() or 0),
-            "total_expenses": float(total_expenses_res.scalar() or 0),
-            "net_profit": float((total_revenue_res.scalar() or 0) - (total_expenses_res.scalar() or 0)),
+            "total_revenue": float(total_revenue),
+            "total_expenses": float(total_expenses),
+            "net_profit": float(total_revenue - total_expenses),
             "mortality_rate": round(mortality_rate, 2),
             "fcr_rate": round(fcr_rate, 2),
             "recent_activities": await self._get_recent_activities(current_user.id)

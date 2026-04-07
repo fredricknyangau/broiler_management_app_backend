@@ -76,19 +76,9 @@ async def create_flock(
     await db.commit()
     await db.refresh(flock)
     
-    # Auto-generate vaccination schedule
-    # Note: VaccinationService needs to be async-aware or passed the async session
-    # Assuming VaccinationService is updated or we handle it here.
-    # For safety in this refactoring step, I'll instantiate it but need to ensure it supports async
+    # Auto-generate standard vaccination schedule for the new flock
     vaccination_service = VaccinationService(db)
-    # await vaccination_service.generate_schedule(flock.id, flock.start_date) # TODO: Ensure this is async
-    # TEMPORARY FIX: If VaccinationService is not async, this call might fail. 
-    # Attempting to call it, assuming I will fix VaccinationService next.
-    if hasattr(vaccination_service, 'generate_schedule'):
-         # If it's async it should be awaited. Ideally we check the service first.
-         # For now, I will comment out the scheduling to prevent 500s until service is fixed.
-         pass 
-         # await vaccination_service.generate_schedule(flock.id, flock.start_date)
+    await vaccination_service.generate_schedule(flock.id, flock.start_date)
 
     return flock
 

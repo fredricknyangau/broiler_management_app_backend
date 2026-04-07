@@ -78,6 +78,8 @@ class Settings(BaseSettings):
 
     # Notifications
     SMS_PROVIDER_API_KEY: Optional[str] = None
+    AFRICASTALKING_USERNAME: str = "sandbox"
+    AFRICASTALKING_API_KEY: str = "place_holder"
     EMAIL_API_KEY: Optional[str] = None
     PUSH_NOTIFICATION_KEY: Optional[str] = None
 

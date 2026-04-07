@@ -1,5 +1,7 @@
 import random
 import logging
+import asyncio
+import africastalking
 import redis.asyncio as redis
 from app.config import settings
 
@@ -8,6 +10,58 @@ logger = logging.getLogger(__name__)
 class OTPService:
     def __init__(self):
         self.redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+        
+        # Initialize Africa's Talking
+        self.sms = None
+        if settings.AFRICASTALKING_USERNAME and settings.AFRICASTALKING_API_KEY and settings.AFRICASTALKING_API_KEY != "place_holder":
+            africastalking.initialize(
+                settings.AFRICASTALKING_USERNAME, 
+                settings.AFRICASTALKING_API_KEY
+            )
+            self.sms = africastalking.SMS
+        else:
+            logger.warning("Africa's Talking is not properly configured.")
+
+    def _normalize_phone(self, phone_number: str) -> str:
+        """
+        Normalize phone number to E.164 format required by Africa's Talking.
+        Handles Kenyan numbers:  07XX → +254XX,  254XX → +254XX,  +254XX → +254XX
+        """
+        phone = phone_number.strip().replace(" ", "").replace("-", "")
+        if phone.startswith("0"):
+            phone = "+254" + phone[1:]
+        elif phone.startswith("254") and not phone.startswith("+"):
+            phone = "+" + phone
+        return phone
+
+    async def _send_sms_async(self, phone_number: str, message: str) -> None:
+        """Helper to call synchronous Africa's Talking API without blocking the event loop."""
+        if not self.sms:
+            logger.error(
+                "Cannot send SMS: Africa's Talking SMS client not initialized. "
+                "Check AFRICASTALKING_USERNAME and AFRICASTALKING_API_KEY env vars."
+            )
+            return
+
+        def _send():
+            try:
+                response = self.sms.send(message, [phone_number])
+                logger.info(f"Africa's Talking API Response: {response}")
+                # Inspect per-recipient delivery status for early failure detection
+                recipients = response.get("SMSMessageData", {}).get("Recipients", [])
+                for r in recipients:
+                    if r.get("status") != "Success":
+                        logger.error(
+                            f"SMS delivery failed for {r.get('number')}: "
+                            f"{r.get('status')} (code: {r.get('statusCode')})"
+                        )
+                    else:
+                        logger.info(f"SMS delivered to {r.get('number')} (cost: {r.get('cost')})")
+            except Exception as e:
+                logger.error(f"Africa's Talking SDK Error: {e}", exc_info=True)
+
+        await asyncio.to_thread(_send)
+
 
     async def send_otp(self, phone_number: str) -> str:
         """
@@ -15,6 +69,9 @@ class OTPService:
         Expiry: 5 minutes (300 seconds).
         Included: Rate limiting to prevent SMS bombing (max 3 reqs per 15 min).
         """
+        # Normalize to E.164 before anything else
+        phone_number = self._normalize_phone(phone_number)
+        logger.info(f"Sending OTP to normalized number: {phone_number}")
         rate_limit_key = f"rate_limit:otp:{phone_number}"
         attempts = await self.redis_client.get(rate_limit_key)
         
@@ -36,10 +93,15 @@ class OTPService:
             await self.redis_client.incr(rate_limit_key)
         
         # Avoid leaking OTPs to centralized logs in production.
+        message = f"Your KukuFiti verification code is {code}. It expires in 5 minutes."
+        
         if settings.DEBUG:
             logger.info(f"[DEBUG] OTP for {phone_number} is {code}")
         else:
             logger.info(f"OTP generated and SMS queue hit for {phone_number}")
+            
+        # Send SMS using AfricasTalking
+        await self._send_sms_async(phone_number, message)
         
         return code
 
