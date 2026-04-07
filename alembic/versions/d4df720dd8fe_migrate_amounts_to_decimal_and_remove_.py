@@ -68,5 +68,4 @@ def downgrade() -> None:
                type_=sa.VARCHAR(),
                existing_nullable=False,
                existing_server_default=sa.text("'0'::character varying"))
-    op.drop_column('expenditures', 'checkout_request_id')
     # ### end Alembic commands ###
