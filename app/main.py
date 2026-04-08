@@ -1,18 +1,83 @@
+import sentry_sdk
+import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+
+from app.api.v1 import (
+    admin,
+    ai,
+    alerts,
+    analytics,
+    api_keys,
+    audit,
+    auth,
+    billing,
+    biosecurity,
+    community,
+    daily_checks,
+    data,
+    events,
+    farms,
+    finance,
+    flocks,
+    health,
+    inventory,
+    market,
+    people,
+    resources,
+    tasks,
+)
+from app.api.v1 import settings as settings_router
 from app.config import settings
-from app.api.v1 import auth, flocks, daily_checks, finance, inventory, biosecurity, alerts, api_keys, events, health, market, admin, data, people, analytics, billing, audit, resources, settings as settings_router, tasks, farms, ai, community
-import structlog
 from app.core.logging import setup_logging
 
 # Configure logging on startup
-# Configure logging on startup
 setup_logging()
+
+# Initialize Sentry for error tracking and performance monitoring
+if settings.SENTRY_ENABLED and settings.SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        integrations=[
+            FastApiIntegration(),
+            SqlalchemyIntegration(),
+        ],
+        traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
+        traces_sampler=lambda ctx: 0.0 if ctx["transaction"].startswith("/health") else settings.SENTRY_TRACES_SAMPLE_RATE,
+        send_default_pii=False,
+        environment="production" if not settings.DEBUG else "development",
+    )
+    logger = structlog.get_logger()
+    logger.info("sentry_initialized", dsn_prefix=settings.SENTRY_DSN[:30])
 
 app = FastAPI(
     title=settings.APP_NAME,
-    openapi_url=f"{settings.API_V1_PREFIX}/openapi.json"
+    version="1.0.0",
+    description="Modern Poultry Farm Management System API",
+    openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
+    docs_url=f"{settings.API_V1_PREFIX}/docs",
+    redoc_url=f"{settings.API_V1_PREFIX}/redoc",
+    openapi_tags=[
+        {"name": "Authentication", "description": "Auth endpoints (login, register, SSO)"},
+        {"name": "Flocks", "description": "Flock/batch management"},
+        {"name": "Farms", "description": "Farm management"},
+        {"name": "Daily Checks", "description": "Daily observations and checks"},
+        {"name": "Finance", "description": "Financial tracking (expenses, sales)"},
+        {"name": "Inventory", "description": "Stock and inventory management"},
+        {"name": "Biosecurity", "description": "Biosecurity protocols and logs"},
+        {"name": "Alerts", "description": "Alert rules and notifications"},
+        {"name": "Events", "description": "Event logging (mortality, feed, vaccination, weight)"},
+        {"name": "People", "description": "Staff and team management"},
+        {"name": "Analytics", "description": "Analytics and reporting"},
+        {"name": "Billing", "description": "Billing, subscriptions, and payments"},
+        {"name": "AI Advisory", "description": "AI-powered advisory services"},
+        {"name": "Community", "description": "Community features (posts, comments)"},
+        {"name": "Admin", "description": "Admin operations"},
+        {"name": "Health", "description": "Health check endpoints"},
+    ]
 )
 
 @app.on_event("startup")
@@ -70,19 +135,37 @@ app.include_router(community.router, prefix=f"{settings.API_V1_PREFIX}/community
 
 @app.get("/")
 async def root():
-    """Root endpoint"""
+    """Root endpoint - API information and links
+
+    Returns basic API information and links to documentation.
+    """
     return {
-        "message": "Broiler Farm Management API",
+        "message": "🐔 Broiler Farm Management API",
         "status": "running",
         "version": "1.0.0",
-        "docs": "/docs"
+        "docs": f"{settings.API_V1_PREFIX}/docs",
+        "redoc": f"{settings.API_V1_PREFIX}/redoc",
+        "openapi": f"{settings.API_V1_PREFIX}/openapi.json",
+        "health": f"{settings.API_V1_PREFIX}/health"
     }
 
-@app.get("/health")
+@app.get("/health", tags=["Health"])
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint
+
+    Returns the health status of the API and its dependencies.
+
+    Returns:
+        - status: Overall API status (healthy/unhealthy)
+        - database: Database connection status
+        - redis: Redis connection status
+        - timestamp: Server timestamp
+    """
+    import datetime
     return {
         "status": "healthy",
         "database": "connected",
-        "redis": "connected"
+        "redis": "connected",
+        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "environment": "production" if not settings.DEBUG else "development"
     }

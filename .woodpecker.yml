@@ -2,6 +2,67 @@ when:
   - event: [push, manual]
 
 steps:
+  # ─────────────────────────────────────────────────────────────
+  # CODE QUALITY & TESTING
+  # ─────────────────────────────────────────────────────────────
+
+  - name: install-dependencies
+    image: python:3.12
+    commands:
+      - pip install poetry
+      - cd backend && poetry install
+
+  - name: lint
+    image: python:3.12
+    commands:
+      - cd backend
+      - poetry run black --check app/
+      - poetry run isort --check-only app/
+      - poetry run flake8 app/ --max-line-length=120
+    when:
+      - event: [push, manual]
+
+  - name: type-check
+    image: python:3.12
+    commands:
+      - cd backend
+      - poetry run mypy app/ --ignore-missing-imports
+    when:
+      - event: [push, manual]
+
+  - name: test
+    image: python:3.12
+    services:
+      - postgres:16
+      - redis:7
+    environment:
+      DATABASE_URL: postgresql+asyncpg://broiler_user:broiler_pass@postgres:5432/broiler_farm_db
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: test-secret-key-for-ci
+      DEBUG: "false"
+    commands:
+      - cd backend
+      - poetry run pytest tests/ -v --tb=short --cov=app --cov-report=xml --cov-report=html
+    when:
+      - event: [push, manual]
+
+  - name: upload-coverage
+    image: python:3.12
+    environment:
+      CODECOV_TOKEN:
+        from_secret: CODECOV_TOKEN
+    commands:
+      - cd backend
+      - pip install codecov
+      - codecov -f coverage.xml -F backend
+    when:
+      - event: [push, manual]
+    allow_failure: true
+
+  # ─────────────────────────────────────────────────────────────
+  # DEPLOYMENT
+  # ─────────────────────────────────────────────────────────────
+
   - name: deploy
     image: appleboy/drone-ssh
     when:

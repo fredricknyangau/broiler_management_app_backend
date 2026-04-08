@@ -1,6 +1,7 @@
-import os
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -17,7 +18,7 @@ class Settings(BaseSettings):
     @property
     def ASYNC_DATABASE_URL(self) -> str:
         """Ensure the URL uses the asyncpg driver and strips incompatible options."""
-        from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
+        from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
         url = self.DATABASE_URL
         if url.startswith("postgresql://"):
@@ -108,6 +109,60 @@ class Settings(BaseSettings):
     APPLE_CLIENT_ID: Optional[str] = None        # Apple Service ID (e.g. com.kukufiti.app)
     APPLE_TEAM_ID: Optional[str] = None          # 10-char Apple Team ID
     APPLE_KEY_ID: Optional[str] = None           # Key ID from Apple Developer Portal
+
+    # ────────────────────────────────────────────────────────────────
+    # MONITORING & ERROR TRACKING
+    # ────────────────────────────────────────────────────────────────
+    SENTRY_DSN: Optional[str] = None             # Sentry error tracking
+    SENTRY_ENABLED: bool = False                 # Enable Sentry monitoring
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.1       # Sample 10% of transactions (performance monitoring)
+
+    # ────────────────────────────────────────────────────────────────
+    # SECURITY VALIDATORS
+    # ────────────────────────────────────────────────────────────────
+
+    @field_validator('SECRET_KEY')
+    @classmethod
+    def validate_secret_key(cls, v):
+        """Ensure SECRET_KEY is not the default placeholder in production."""
+        if not v or v == "change-me-in-production":
+            raise ValueError(
+                "❌ SECURITY ERROR: SECRET_KEY must be set via environment variable\n"
+                "   Do not use the default 'change-me-in-production' in production\n"
+                "   Generate a secure key: python3 scripts/generate_secret.py"
+            )
+        if len(v) < 32:
+            raise ValueError("❌ SECRET_KEY must be at least 32 characters long")
+        return v
+
+    @field_validator('DATABASE_URL')
+    @classmethod
+    def validate_database_url(cls, v):
+        """Ensure DATABASE_URL is configured."""
+        if not v:
+            raise ValueError(
+                "❌ DATABASE_URL environment variable is required\n"
+                "   Set it in .env: DATABASE_URL=postgresql+asyncpg://..."
+            )
+        if "broiler_pass" in v and "localhost" not in v:
+            raise ValueError(
+                "❌ SECURITY WARNING: Using default database credentials in production is not allowed\n"
+                "   Use production database credentials in DATABASE_URL"
+            )
+        return v
+
+    @field_validator('DEBUG')
+    @classmethod
+    def validate_debug_mode(cls, v):
+        """Warn if DEBUG is True in production environment."""
+        if v is True:
+            import os
+            if os.getenv('ENVIRONMENT') == 'production':
+                raise ValueError(
+                    "❌ DEBUG=True detected in production!\n"
+                    "   Set DEBUG=False in production environment variables"
+                )
+        return v
 
 
 settings = Settings()
