@@ -33,7 +33,7 @@ class Subscription(Base, UUIDMixin, TimestampMixin):
     plan_type = Column(
         String, nullable=False, default=PlanType.STARTER
     )  # Stored as string for flexibility
-    status = Column(String, nullable=False, default=SubscriptionStatus.PENDING)
+    status = Column(String, nullable=False, default=SubscriptionStatus.PENDING, index=True)
     start_date = Column(DateTime, nullable=True)
     end_date = Column(DateTime, nullable=True)
     amount = Column(DECIMAL(10, 2), nullable=True, doc="Amount in KES")

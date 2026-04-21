@@ -116,6 +116,7 @@ class VaccinationEventCreate(BaseModel):
     administered_by: Optional[str] = None
     batch_number: Optional[str] = None
     next_due_date: Optional[date] = None
+    cost_ksh: Optional[float] = 0.0
     notes: Optional[str] = None
 
 
@@ -131,6 +132,7 @@ class VaccinationEventUpdate(BaseModel):
     administered_by: Optional[str] = None
     batch_number: Optional[str] = None
     next_due_date: Optional[date] = None
+    cost_ksh: Optional[float] = None
     notes: Optional[str] = None
 
 

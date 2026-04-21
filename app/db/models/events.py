@@ -112,6 +112,7 @@ class VaccinationEvent(Base, BaseEvent):
     administered_by = Column(String(255))
     batch_number = Column(String(100), doc="Vaccine batch number")
     next_due_date = Column(Date, doc="Date for next dose/booster")
+    cost_ksh = Column(DECIMAL(10, 2), doc="Cost of this vaccination/medicine")
     notes = Column(Text)
 
     # Relationships

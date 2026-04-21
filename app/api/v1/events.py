@@ -24,6 +24,7 @@ from app.schemas.daily_check import (FeedConsumptionEventCreate,
                                      WeightMeasurementEventCreate,
                                      WeightMeasurementEventResponse,
                                      WeightMeasurementEventUpdate)
+from app.services.finance_service import FinanceService
 
 router = APIRouter()
 
@@ -191,6 +192,20 @@ async def create_feed_event(
         event_date=event_date
     )
     db.add(event)
+    
+    # Sync Expenditure
+    if event.cost_ksh and event.cost_ksh > 0:
+        finance_service = FinanceService(db)
+        await finance_service.sync_expenditure(
+            farmer_id=current_user.id,
+            amount=event.cost_ksh,
+            category="feed",
+            description=f"Feed: {event.feed_type} for flock {flock.name}",
+            date=event.event_date,
+            flock_id=flock_id,
+            related_id=event.id,
+            related_type="feed",
+        )
     await db.commit()
     await db.refresh(event)
     return event
@@ -219,6 +234,23 @@ async def update_feed_event(
     for field, value in update_data.items():
         setattr(event, field, value)
 
+    # Sync Expenditure
+    finance_service = FinanceService(db)
+    if event.cost_ksh and event.cost_ksh > 0:
+        await finance_service.sync_expenditure(
+            farmer_id=current_user.id,
+            amount=event.cost_ksh,
+            category="feed",
+            description=f"Feed: {event.feed_type} for flock {event.flock.name}",
+            date=event.event_date,
+            flock_id=event.flock_id,
+            related_id=event.id,
+            related_type="feed",
+        )
+    else:
+        # If cost was removed, delete linked expenditure
+        await finance_service.delete_linked_expenditure(event.id, "feed")
+
     # db.add(event)
     await db.commit()
     await db.refresh(event)
@@ -242,6 +274,10 @@ async def delete_feed_event(
 
     if not event:
         raise HTTPException(status_code=404, detail="Feed event not found")
+
+    # Delete linked expenditure first
+    finance_service = FinanceService(db)
+    await finance_service.delete_linked_expenditure(event.id, "feed")
 
     await db.delete(event)
     await db.commit()
@@ -302,6 +338,20 @@ async def create_vaccination_event(
         event_date=event_date
     )
     db.add(event)
+    
+    # Sync Expenditure
+    if event.cost_ksh and event.cost_ksh > 0:
+        finance_service = FinanceService(db)
+        await finance_service.sync_expenditure(
+            farmer_id=current_user.id,
+            amount=event.cost_ksh,
+            category="medicine",
+            description=f"Vaccination: {event.vaccine_name} for flock {flock.name}",
+            date=event.event_date,
+            flock_id=flock_id,
+            related_id=event.id,
+            related_type="vaccination",
+        )
     await db.commit()
     await db.refresh(event)
     return event
@@ -330,6 +380,22 @@ async def update_vaccination_event(
     for field, value in update_data.items():
         setattr(event, field, value)
 
+    # Sync Expenditure
+    finance_service = FinanceService(db)
+    if event.cost_ksh and event.cost_ksh > 0:
+        await finance_service.sync_expenditure(
+            farmer_id=current_user.id,
+            amount=event.cost_ksh,
+            category="medicine",
+            description=f"Vaccination: {event.vaccine_name} for flock {event.flock.name}",
+            date=event.event_date,
+            flock_id=event.flock_id,
+            related_id=event.id,
+            related_type="vaccination",
+        )
+    else:
+        await finance_service.delete_linked_expenditure(event.id, "vaccination")
+
     # db.add(event)
     await db.commit()
     await db.refresh(event)
@@ -353,6 +419,10 @@ async def delete_vaccination_event(
 
     if not event:
         raise HTTPException(status_code=404, detail="Vaccination event not found")
+
+    # Delete linked expenditure first
+    finance_service = FinanceService(db)
+    await finance_service.delete_linked_expenditure(event.id, "vaccination")
 
     await db.delete(event)
     await db.commit()
@@ -412,8 +482,7 @@ async def create_weight_event(
         id=event_in.event_id,
         event_id=event_in.event_id,
         flock_id=flock_id,
-        event_date=event_date,
-        measurement_date=event_date
+        event_date=event_date
     )
     db.add(event)
     await db.commit()

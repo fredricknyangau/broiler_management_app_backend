@@ -9,7 +9,7 @@ services:
     ports:
       - "5434:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - broiler_postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-broiler_user} -d ${POSTGRES_DB:-broiler_farm_db}"]
       interval: 10s
@@ -38,20 +38,21 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: broiler_api
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8080
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
     ports:
       - "8080:8080"
     env_file:
       - .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-broiler_user}:${POSTGRES_PASSWORD:-broiler_pass}@postgres:5432/${POSTGRES_DB:-broiler_farm_db}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY}
       - DEBUG=${DEBUG:-False}
     volumes:
       - ./app:/app/app
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini
+      - ./scripts:/app/scripts
     depends_on:
       postgres:
         condition: service_healthy
@@ -70,7 +71,7 @@ services:
       - .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-broiler_user}:${POSTGRES_PASSWORD:-broiler_pass}@postgres:5432/${POSTGRES_DB:-broiler_farm_db}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - REDIS_URL=redis://redis:6379/0
     volumes:
       - ./app:/app/app
     depends_on:
@@ -91,7 +92,7 @@ services:
       - .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-broiler_user}:${POSTGRES_PASSWORD:-broiler_pass}@postgres:5432/${POSTGRES_DB:-broiler_farm_db}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - REDIS_URL=redis://redis:6379/0
     volumes:
       - ./app:/app/app
     depends_on:
@@ -113,7 +114,7 @@ services:
     env_file:
       - .env
     environment:
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       - redis
       - celery_worker
@@ -138,7 +139,7 @@ services:
       - postgres
 
 volumes:
-  postgres_data:
+  broiler_postgres_data:
   redis_data:
   pgadmin_data:
 

@@ -25,6 +25,7 @@ class SubscriptionResponse(BaseModel):
     end_date: datetime | None
     mpesa_reference: str | None
     billing_period: str | None
+    checkout_request_id: str | None = None
 
     class Config:
         from_attributes = True

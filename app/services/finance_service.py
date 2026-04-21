@@ -1,208 +1,177 @@
-"""
-FinanceService — business logic layer for expenditures and sales.
-
-Routers are thin HTTP adapters; all domain logic lives here.
-"""
-
-from __future__ import annotations
-
-from datetime import date
-from typing import Any
+from decimal import Decimal
+from typing import Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.finance import Expenditure, Sale
+from app.db.models.finance import Expenditure
 from app.db.models.inventory import InventoryItem
-from app.db.models.inventory_history import InventoryAction, InventoryHistory
 
-# ── Whitelisted expense categories for the Starter plan ──────────────────────
-STARTER_EXPENSE_CATEGORIES: frozenset[str] = frozenset(
-    ["feed", "chicks", "medicine", "utilities", "other"]
-)
+# Standardized categories for the Kenyan broiler market (Starter Plan)
+STARTER_EXPENSE_CATEGORIES: List[str] = [
+    "feed",
+    "chicks",
+    "medicine",
+    "vaccines",
+    "charcoal",
+    "sawdust",
+    "water",
+    "transport",
+    "labor",
+    "other",
+]
 
 
 class FinanceService:
-    """Encapsulates all write business logic for the finance domain."""
+    """Service for managing expenditures and sales with inventory integration."""
 
-    def __init__(self, db: AsyncSession) -> None:
+    def __init__(self, db: AsyncSession):
         self.db = db
-
-    # ── Expenditures ──────────────────────────────────────────────────────────
 
     async def create_expenditure(
         self,
         farmer_id: UUID,
-        data: dict[str, Any],
-        *,
+        data: Dict,
         create_inventory_item: bool = False,
-        new_inventory_name: str | None = None,
-        new_inventory_unit: str | None = None,
+        new_inventory_name: Optional[str] = None,
+        new_inventory_unit: Optional[str] = None,
     ) -> Expenditure:
-        """
-        Create an expenditure record and optionally link/update inventory.
-
-        Logic:
-          - If ``create_inventory_item`` is True and ``new_inventory_name`` is set,
-            a new InventoryItem is created and linked.
-          - If ``inventory_item_id`` is set in ``data``, the existing item's stock
-            and cost_per_unit are updated.
-          - An InventoryHistory entry is written for every stock movement.
-        """
-        expense_data = {
-            k: v
-            for k, v in data.items()
-            if k
-            not in ("create_inventory_item", "new_inventory_name", "new_inventory_unit")
-        }
-
-        inventory_id: UUID | None = data.get("inventory_item_id")
-
+        """Record a new expense, optionally linking to or creating an inventory item."""
+        
+        inventory_item_id = data.get("inventory_item_id")
+        
         if create_inventory_item and new_inventory_name:
-            inventory_id = await self._create_and_link_inventory(
+            # Create new inventory item
+            new_inv = InventoryItem(
                 farmer_id=farmer_id,
                 name=new_inventory_name,
-                unit=new_inventory_unit or data.get("unit") or "units",
                 category=data.get("category", "other"),
-                quantity=data.get("quantity") or 0,
-                amount=data.get("amount", 0),
-                expense_date=data.get("date"),
-                description=data.get("description", ""),
+                unit=new_inventory_unit or data.get("unit", "pcs"),
+                quantity=Decimal(str(data.get("quantity", 0))),
+                cost_per_unit=Decimal(str(data.get("amount", 0))) / Decimal(str(data.get("quantity", 1))) if data.get("quantity") else 0,
+                last_restocked=data.get("date"),
             )
-        elif inventory_id:
-            await self._restock_inventory(
-                inventory_id=inventory_id,
-                quantity=data.get("quantity"),
-                amount=data.get("amount"),
-                expense_date=data.get("date"),
-                description=data.get("description", ""),
-                farmer_id=farmer_id,
-            )
+            self.db.add(new_inv)
+            await self.db.flush()
+            inventory_item_id = new_inv.id
 
-        item = Expenditure(**expense_data, farmer_id=farmer_id)
-        item.inventory_item_id = inventory_id
-        self.db.add(item)
+        expenditure = Expenditure(
+            farmer_id=farmer_id,
+            flock_id=data.get("flock_id"),
+            date=data.get("date"),
+            category=data.get("category"),
+            description=data.get("description"),
+            amount=Decimal(str(data.get("amount"))),
+            quantity=Decimal(str(data.get("quantity"))) if data.get("quantity") else None,
+            unit=data.get("unit"),
+            mpesa_transaction_id=data.get("mpesa_transaction_id"),
+            inventory_item_id=inventory_item_id,
+            supplier_id=data.get("supplier_id"),
+        )
+        
+        self.db.add(expenditure)
         await self.db.commit()
-        await self.db.refresh(item)
-        return item
+        await self.db.refresh(expenditure)
+        return expenditure
 
     async def update_expenditure(
         self,
         expenditure: Expenditure,
-        update_data: dict[str, Any],
-        *,
+        update_data: Dict,
         create_inventory_item: bool = False,
-        new_inventory_name: str | None = None,
-        new_inventory_unit: str | None = None,
-        farmer_id: UUID,
+        new_inventory_name: Optional[str] = None,
+        new_inventory_unit: Optional[str] = None,
+        farmer_id: Optional[UUID] = None,
     ) -> Expenditure:
-        """Update an expenditure, optionally creating a new linked inventory item."""
-        # Strip special fields before setattr loop
-        for special in (
-            "create_inventory_item",
-            "new_inventory_name",
-            "new_inventory_unit",
-        ):
-            update_data.pop(special, None)
-
-        if create_inventory_item and new_inventory_name:
-            new_inv_id = await self._create_and_link_inventory(
+        """Update an existing expense."""
+        
+        if create_inventory_item and new_inventory_name and farmer_id:
+            new_inv = InventoryItem(
                 farmer_id=farmer_id,
                 name=new_inventory_name,
-                unit=new_inventory_unit or update_data.get("unit") or "units",
-                category=update_data.get("category", "other"),
-                quantity=update_data.get("quantity") or 0,
-                amount=update_data.get("amount", 0),
-                expense_date=update_data.get("date") or expenditure.date,
-                description=update_data.get("description") or expenditure.description,
+                category=update_data.get("category") or expenditure.category,
+                unit=new_inventory_unit or update_data.get("unit") or expenditure.unit or "pcs",
+                quantity=Decimal(str(update_data.get("quantity", 0))),
+                last_restocked=update_data.get("date") or expenditure.date,
             )
-            expenditure.inventory_item_id = new_inv_id
+            self.db.add(new_inv)
+            await self.db.flush()
+            update_data["inventory_item_id"] = new_inv.id
 
         for field, value in update_data.items():
-            setattr(expenditure, field, value)
+            if hasattr(expenditure, field):
+                if field in ["amount", "quantity"] and value is not None:
+                    setattr(expenditure, field, Decimal(str(value)))
+                else:
+                    setattr(expenditure, field, value)
 
         await self.db.commit()
         await self.db.refresh(expenditure)
         return expenditure
 
-    # ── Private helpers ───────────────────────────────────────────────────────
-
-    async def _create_and_link_inventory(
+    async def sync_expenditure(
         self,
-        *,
         farmer_id: UUID,
-        name: str,
-        unit: str,
+        amount: Decimal,
         category: str,
-        quantity: float,
-        amount: float,
-        expense_date: date | None,
         description: str,
-    ) -> UUID:
-        """Create a new InventoryItem and an initial PURCHASE history record."""
-        # Map expense category → inventory category where sensible
-        inv_category = (
-            category if category in ("feed", "medicine", "equipment") else "other"
-        )
-        cost_per_unit = (amount / quantity) if quantity else 0.0
+        date,
+        flock_id: Optional[UUID] = None,
+        related_id: Optional[UUID] = None,
+        related_type: Optional[str] = None,
+    ) -> Optional[Expenditure]:
+        """Create or update an expenditure record linked to an event."""
+        if amount is None or amount <= 0:
+            if related_id and related_type:
+                await self.delete_linked_expenditure(related_id, related_type)
+            return None
 
-        new_item = InventoryItem(
-            farmer_id=farmer_id,
-            name=name,
-            category=inv_category,
-            quantity=quantity,
-            unit=unit,
-            cost_per_unit=cost_per_unit,
-        )
-        self.db.add(new_item)
-        await self.db.flush()  # obtain PK before writing history
-
-        if quantity > 0:
-            history = InventoryHistory(
-                inventory_item_id=new_item.id,
-                user_id=farmer_id,
-                date=expense_date,
-                action=InventoryAction.PURCHASE,
-                quantity_change=quantity,
-                notes=f"Created via Expense: {description}",
+        # Check if an expenditure already exists for this related object
+        existing_exp = None
+        if related_id and related_type:
+            stmt = select(Expenditure).filter(
+                and_(
+                    Expenditure.related_id == related_id,
+                    Expenditure.related_type == related_type,
+                )
             )
-            self.db.add(history)
+            result = await self.db.execute(stmt)
+            existing_exp = result.scalars().first()
 
-        return new_item.id
-
-    async def _restock_inventory(
-        self,
-        *,
-        inventory_id: UUID,
-        quantity: float | None,
-        amount: float | None,
-        expense_date: date | None,
-        description: str,
-        farmer_id: UUID,
-    ) -> None:
-        """Add stock to an existing InventoryItem and update cost_per_unit."""
-        result = await self.db.execute(
-            select(InventoryItem).filter(InventoryItem.id == inventory_id)
-        )
-        inv_item = result.scalars().first()
-        if not inv_item:
-            return
-
-        if quantity:
-            inv_item.quantity += quantity
-            history = InventoryHistory(
-                inventory_item_id=inv_item.id,
-                user_id=farmer_id,
-                date=expense_date,
-                action=InventoryAction.PURCHASE,
-                quantity_change=quantity,
-                notes=f"Expense: {description}",
+        if existing_exp:
+            existing_exp.amount = amount
+            existing_exp.category = category
+            existing_exp.description = description
+            existing_exp.date = date
+            existing_exp.flock_id = flock_id
+            await self.db.commit()
+            return existing_exp
+        else:
+            new_exp = Expenditure(
+                farmer_id=farmer_id,
+                flock_id=flock_id,
+                amount=amount,
+                category=category,
+                description=description,
+                date=date,
+                related_id=related_id,
+                related_type=related_type,
             )
-            self.db.add(history)
+            self.db.add(new_exp)
+            await self.db.commit()
+            return new_exp
 
-            # Weighted-average cost_per_unit update
-            if amount:
-                inv_item.cost_per_unit = amount / quantity
-
-        inv_item.last_restocked = expense_date
+    async def delete_linked_expenditure(self, related_id: UUID, related_type: str):
+        """Delete an expenditure linked to a specific event."""
+        stmt = select(Expenditure).filter(
+            and_(
+                Expenditure.related_id == related_id,
+                Expenditure.related_type == related_type,
+            )
+        )
+        result = await self.db.execute(stmt)
+        existing_exp = result.scalars().first()
+        if existing_exp:
+            await self.db.delete(existing_exp)
+            await self.db.commit()

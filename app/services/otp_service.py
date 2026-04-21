@@ -47,6 +47,9 @@ class OTPService:
     async def _send_sms_async(self, phone_number: str, message: str) -> None:
         """Helper to call synchronous Africa's Talking API without blocking the event loop."""
         if not self.sms:
+            if settings.DEBUG:
+                logger.info(f"[DEBUG MODE] Skipping SMS delivery for {phone_number}. Use the code from logs.")
+                return
             error_message = (
                 "Cannot send SMS: Africa's Talking SMS client not initialized. "
                 "Check AFRICASTALKING_USERNAME and AFRICASTALKING_API_KEY env vars."
@@ -56,6 +59,9 @@ class OTPService:
 
         def _send():
             try:
+                if settings.DEBUG:
+                    logger.info(f"[DEBUG MODE] Mocking SMS delivery to {phone_number}")
+                    return
                 response = self.sms.send(message, [phone_number])
                 logger.info(f"Africa's Talking API Response: {response}")
                 # Inspect per-recipient delivery status for early failure detection
@@ -89,7 +95,7 @@ class OTPService:
         rate_limit_key = f"rate_limit:otp:{phone_number}"
         attempts = await self.redis_client.get(rate_limit_key)
 
-        if attempts and int(attempts) >= 3:
+        if not settings.DEBUG and attempts and int(attempts) >= 3:
             logger.warning(f"OTP rate limit exceeded for {phone_number}")
             raise ValueError("Too many OTP requests. Please try again in 15 minutes.")
 
@@ -102,7 +108,7 @@ class OTPService:
 
         # Update rate limits
         if not attempts:
-            await self.redis_client.setex(rate_limit_key, 900, 1)  # 15 minutes window
+            await self.redis_client.setex(rate_limit_key, 100, 1)  # 100 seconds window
         else:
             await self.redis_client.incr(rate_limit_key)
 

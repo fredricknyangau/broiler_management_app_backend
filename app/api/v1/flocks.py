@@ -12,6 +12,7 @@ from app.db.models.subscription import (PlanType, Subscription,
                                         SubscriptionStatus)
 from app.db.models.user import User
 from app.schemas.flock import FlockCreate, FlockResponse, FlockUpdate
+from app.services.finance_service import FinanceService
 from app.services.vaccination_service import VaccinationService
 
 router = APIRouter()
@@ -83,6 +84,22 @@ async def create_flock(
     vaccination_service = VaccinationService(db)
     await vaccination_service.generate_schedule(flock.id, flock.start_date)
 
+    # Auto-record acquisition cost as expenditure
+    if flock.cost_per_bird and flock.cost_per_bird > 0:
+        total_cost = float(flock.cost_per_bird) * flock.initial_count
+        finance_service = FinanceService(db)
+        await finance_service.sync_expenditure(
+            farmer_id=current_user.id,
+            amount=total_cost,
+            category="chick_acquisition",
+            description=f"Chick placement: {flock.initial_count} birds @ KSh {flock.cost_per_bird} each — {flock.name}",
+            date=flock.start_date,
+            flock_id=flock.id,
+            related_id=flock.id,
+            related_type="flock_placement",
+        )
+        await db.commit()
+
     return flock
 
 
@@ -146,9 +163,26 @@ async def update_flock(
     for field, value in update_data.items():
         setattr(flock, field, value)
 
-    # db.add(flock) # Not strictly necessary if attached to session
     await db.commit()
     await db.refresh(flock)
+
+    # Re-sync flock placement expenditure if cost fields changed
+    if "cost_per_bird" in update_data or "initial_count" in update_data:
+        if flock.cost_per_bird and flock.cost_per_bird > 0:
+            total_cost = float(flock.cost_per_bird) * flock.initial_count
+            finance_service = FinanceService(db)
+            await finance_service.sync_expenditure(
+                farmer_id=current_user.id,
+                amount=total_cost,
+                category="chick_acquisition",
+                description=f"Chick placement: {flock.initial_count} birds @ KSh {flock.cost_per_bird} each — {flock.name}",
+                date=flock.start_date,
+                flock_id=flock.id,
+                related_id=flock.id,
+                related_type="flock_placement",
+            )
+            await db.commit()
+
     return flock
 
 

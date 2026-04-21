@@ -26,7 +26,7 @@ class Expenditure(Base, UUIDMixin, TimestampMixin):
         nullable=False,
         index=True,
     )
-    date = Column(Date, nullable=False, doc="Date of expense")
+    date = Column(Date, nullable=False, index=True, doc="Date of expense")
     category = Column(
         String(50), nullable=False, doc="Category: feed, medicine, equipment, etc."
     )
@@ -37,6 +37,10 @@ class Expenditure(Base, UUIDMixin, TimestampMixin):
     receipt_image = Column(String(255), nullable=True, doc="URL/path to receipt image")
     mpesa_transaction_id = Column(String(50), nullable=True)
     checkout_request_id = Column(String(50), nullable=True)
+    
+    # Auto-linking fields
+    related_id = Column(UUID(as_uuid=True), nullable=True, index=True, doc="ID of the source event (e.g. FeedEvent ID)")
+    related_type = Column(String(50), nullable=True, index=True, doc="Type of source event: feed, vaccination, flock_placement")
 
     # Relationships
     flock = relationship("Flock", backref="expenditures")
@@ -82,7 +86,7 @@ class Sale(Base, UUIDMixin, TimestampMixin):
         nullable=False,
         index=True,
     )
-    date = Column(Date, nullable=False, doc="Date of sale")
+    date = Column(Date, nullable=False, index=True, doc="Date of sale")
     quantity = Column(Integer, nullable=False, doc="Number of birds sold")
     price_per_bird = Column(DECIMAL(10, 2), nullable=False, doc="Unit price")
     total_amount = Column(DECIMAL(10, 2), nullable=False, doc="Total revenue")
