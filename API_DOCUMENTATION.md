@@ -2,9 +2,9 @@
 
 ## Quick Links
 
-- **Interactive API Docs (Swagger UI):** http://localhost:8000/api/v1/docs
-- **Alternative API Docs (ReDoc):** http://localhost:8000/api/v1/redoc
-- **OpenAPI Schema (JSON):** http://localhost:8000/api/v1/openapi.json
+- **Interactive API Docs (Swagger UI):** http://localhost:8080/api/v1/docs
+- **Alternative API Docs (ReDoc):** http://localhost:8080/api/v1/redoc
+- **OpenAPI Schema (JSON):** http://localhost:8080/api/v1/openapi.json
 
 ## Running the Development Server
 
@@ -14,7 +14,7 @@ poetry install
 poetry run uvicorn app.main:app --reload
 ```
 
-The API will be available at `http://localhost:8000`
+The API will be available at `http://localhost:8080`
 
 ## API Endpoints Overview
 
@@ -95,14 +95,14 @@ The API will be available at `http://localhost:8000`
 ### Bearer Token Example
 
 ```bash
-curl -X GET http://localhost:8000/api/v1/auth/me \
+curl -X GET http://localhost:8080/api/v1/auth/me \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
 ### Login Example
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/auth/login \
+curl -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "farmer@example.com",
@@ -196,7 +196,7 @@ The OpenAPI schema can be used to automatically generate client SDKs:
 ```bash
 pip install openapi-generator-cli
 openapi-generator-cli generate \
-  -i http://localhost:8000/api/v1/openapi.json \
+  -i http://localhost:8080/api/v1/openapi.json \
   -g python \
   -o ./generated_python_client
 ```
@@ -204,7 +204,7 @@ openapi-generator-cli generate \
 ### Generate TypeScript Client
 ```bash
 openapi-generator-cli generate \
-  -i http://localhost:8000/api/v1/openapi.json \
+  -i http://localhost:8080/api/v1/openapi.json \
   -g typescript-axios \
   -o ./generated_ts_client
 ```
@@ -214,7 +214,7 @@ openapi-generator-cli generate \
 Subscribe to events via webhooks:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/webhooks \
+curl -X POST http://localhost:8080/api/v1/webhooks \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

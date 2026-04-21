@@ -1,13 +1,15 @@
 """admin/users.py — User management endpoints (list, update, delete)."""
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, select, or_
-from typing import List, Any, Optional, Generic, TypeVar
-from uuid import UUID
-from datetime import datetime
-from pydantic import BaseModel
 
-from app.api.deps import get_db, get_current_admin_user
+from datetime import datetime
+from typing import Any, Generic, List, Optional, TypeVar
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from sqlalchemy import func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_current_admin_user, get_db
 from app.db.models.user import User
 from app.schemas.user import UserResponse, UserUpdate
 from app.services.audit_service import log_action
@@ -42,7 +44,9 @@ async def get_all_users(
     total_res = await db.execute(select(func.count()).select_from(query.subquery()))
     total_count = total_res.scalar() or 0
 
-    result = await db.execute(query.order_by(User.created_at.desc()).offset(skip).limit(limit))
+    result = await db.execute(
+        query.order_by(User.created_at.desc()).offset(skip).limit(limit)
+    )
     users = result.scalars().all()
 
     return PaginatedResponse(
@@ -110,4 +114,3 @@ async def delete_user(
         resource_id=str(user_id),
     )
     return {"message": "User deleted successfully"}
-

@@ -1,5 +1,7 @@
 from sqlalchemy import Column, String, Text
+
 from app.db.base import Base, TimestampMixin, UUIDMixin
+
 
 class Resource(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "resources"

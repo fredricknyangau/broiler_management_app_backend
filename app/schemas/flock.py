@@ -1,9 +1,12 @@
-from pydantic import BaseModel, Field, UUID4
 from datetime import date
 from typing import Optional
 
+from pydantic import UUID4, BaseModel, Field
+
+
 class FlockBase(BaseModel):
     """Base properties shared by create, update, and response schemas."""
+
     name: str = Field(..., max_length=255)
     breed: Optional[str] = Field(None, max_length=100)
     hatchery_source: Optional[str] = Field(None, max_length=255)
@@ -17,12 +20,16 @@ class FlockBase(BaseModel):
     notes: Optional[str] = None
     farm_id: Optional[UUID4] = None
 
+
 class FlockCreate(FlockBase):
     """Properties to receive on flock creation."""
+
     pass
+
 
 class FlockUpdate(BaseModel):
     """Properties to receive on flock update."""
+
     name: Optional[str] = Field(None, max_length=255)
     breed: Optional[str] = Field(None, max_length=100)
     hatchery_source: Optional[str] = Field(None, max_length=255)
@@ -32,14 +39,18 @@ class FlockUpdate(BaseModel):
     cost_per_bird: Optional[float] = Field(None, ge=0)
     total_acquisition_cost: Optional[float] = Field(None, ge=0)
     expected_end_date: Optional[date] = None
-    status: Optional[str] = Field(None, pattern="^(active|completed|sold|culled|terminated)$")
+    status: Optional[str] = Field(
+        None, pattern="^(active|completed|sold|culled|terminated)$"
+    )
     notes: Optional[str] = None
     farm_id: Optional[UUID4] = None
 
+
 class FlockResponse(FlockBase):
     """Properties to return to client."""
+
     id: UUID4
     farmer_id: UUID4
-    
+
     class Config:
         from_attributes = True

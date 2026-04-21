@@ -1,11 +1,12 @@
 from celery import Celery
+
 from app.config import settings
 
 celery_app = Celery(
     "broiler_farm_workers",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
-    include=["app.workers.tasks"]
+    include=["app.workers.tasks"],
 )
 
 # Celery configuration

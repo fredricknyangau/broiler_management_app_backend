@@ -1,6 +1,8 @@
-from pydantic import BaseModel, UUID4, Field
 from datetime import date
-from typing import Optional, List
+from typing import List, Optional
+
+from pydantic import UUID4, BaseModel, Field
+
 
 class VetConsultationBase(BaseModel):
     visit_date: date
@@ -14,8 +16,10 @@ class VetConsultationBase(BaseModel):
     status: str = Field("pending", pattern="^(pending|in_progress|resolved)$")
     notes: Optional[str] = None
 
+
 class VetConsultationCreate(VetConsultationBase):
     flock_id: Optional[UUID4] = None
+
 
 class VetConsultationResponse(VetConsultationBase):
     id: UUID4

@@ -1,16 +1,19 @@
 """admin/analytics.py — System and financial analytics for the admin dashboard."""
-from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, select
-from typing import List, Dict
-from datetime import datetime, timedelta
-from pydantic import BaseModel
 
-from app.api.deps import get_db, get_current_admin_user
-from app.db.models.user import User
-from app.db.models.finance import Sale, Expenditure
+from datetime import datetime, timedelta
+from typing import Dict, List
+
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_current_admin_user, get_db
+from app.db.models.finance import Expenditure, Sale
 from app.db.models.flock import Flock
-from app.db.models.subscription import Subscription, SubscriptionStatus, SubscriptionPlan
+from app.db.models.subscription import (Subscription, SubscriptionPlan,
+                                        SubscriptionStatus)
+from app.db.models.user import User
 
 router = APIRouter()
 
@@ -42,10 +45,14 @@ async def get_system_stats(
 ):
     """Get system-wide statistics including billing."""
     total_users = await db.execute(select(func.count(User.id)))
-    active_users = await db.execute(select(func.count(User.id)).filter(User.is_active == True))
+    active_users = await db.execute(
+        select(func.count(User.id)).filter(User.is_active == True)
+    )
 
     total_flocks = await db.execute(select(func.count(Flock.id)))
-    active_flocks = await db.execute(select(func.count(Flock.id)).filter(Flock.status == "active"))
+    active_flocks = await db.execute(
+        select(func.count(Flock.id)).filter(Flock.status == "active")
+    )
 
     active_subs_result = await db.execute(
         select(Subscription).filter(Subscription.status == SubscriptionStatus.ACTIVE)
@@ -89,11 +96,16 @@ async def get_system_stats(
     )
     users_tm = users_tm_res.scalar() or 0
     users_lm = users_lm_res.scalar() or 0
-    users_growth = ((users_tm - users_lm) / users_lm * 100.0) if users_lm > 0 else (100.0 if users_tm > 0 else 0.0)
+    users_growth = (
+        ((users_tm - users_lm) / users_lm * 100.0)
+        if users_lm > 0
+        else (100.0 if users_tm > 0 else 0.0)
+    )
 
     rev_tm_res = await db.execute(
         select(Subscription).filter(
-            Subscription.created_at >= thirty_days_ago, Subscription.status == SubscriptionStatus.ACTIVE
+            Subscription.created_at >= thirty_days_ago,
+            Subscription.status == SubscriptionStatus.ACTIVE,
         )
     )
     rev_lm_res = await db.execute(
@@ -105,11 +117,19 @@ async def get_system_stats(
     )
 
     def sum_rev(subs):
-        return sum(float(s.amount) for s in subs if s.amount and s.amount.replace(".", "", 1).isdigit())
+        return sum(
+            float(s.amount)
+            for s in subs
+            if s.amount and s.amount.replace(".", "", 1).isdigit()
+        )
 
     rev_tm = sum_rev(rev_tm_res.scalars().all())
     rev_lm = sum_rev(rev_lm_res.scalars().all())
-    rev_growth = ((rev_tm - rev_lm) / rev_lm * 100.0) if rev_lm > 0 else (100.0 if rev_tm > 0 else 0.0)
+    rev_growth = (
+        ((rev_tm - rev_lm) / rev_lm * 100.0)
+        if rev_lm > 0
+        else (100.0 if rev_tm > 0 else 0.0)
+    )
 
     return AdminStats(
         total_users=total_users.scalar() or 0,
@@ -143,7 +163,10 @@ async def get_aggregate_analytics(
     sales = {r.date: r.amount for r in sales_res.all()}
 
     expenses_stmt = (
-        select(Expenditure.date, func.coalesce(func.sum(Expenditure.amount), 0).label("amount"))
+        select(
+            Expenditure.date,
+            func.coalesce(func.sum(Expenditure.amount), 0).label("amount"),
+        )
         .filter(Expenditure.date >= start_date)
         .group_by(Expenditure.date)
     )
@@ -151,14 +174,19 @@ async def get_aggregate_analytics(
     expenses = {r.date: r.amount for r in expenses_res.all()}
 
     flocks_stmt = (
-        select(Flock.start_date, func.coalesce(func.sum(Flock.initial_count), 0).label("birds"))
+        select(
+            Flock.start_date,
+            func.coalesce(func.sum(Flock.initial_count), 0).label("birds"),
+        )
         .filter(Flock.start_date >= start_date)
         .group_by(Flock.start_date)
     )
     flocks_res = await db.execute(flocks_stmt)
     flocks = {r.start_date: r.birds for r in flocks_res.all()}
 
-    all_dates = sorted(set(list(sales.keys()) + list(expenses.keys()) + list(flocks.keys())))
+    all_dates = sorted(
+        set(list(sales.keys()) + list(expenses.keys()) + list(flocks.keys()))
+    )
     result = []
     for d in all_dates:
         result.append(

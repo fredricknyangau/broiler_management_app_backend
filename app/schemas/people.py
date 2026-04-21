@@ -1,9 +1,12 @@
-from pydantic import BaseModel, EmailStr
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional
 from uuid import UUID
-from datetime import datetime, date
-from decimal import Decimal
-from app.db.models.people import SupplierCategory, CustomerType, EmployeeRole
+
+from pydantic import BaseModel, EmailStr
+
+from app.db.models.people import CustomerType, EmployeeRole, SupplierCategory
+
 
 # Supplier Schemas
 class SupplierBase(BaseModel):
@@ -14,19 +17,23 @@ class SupplierBase(BaseModel):
     category: SupplierCategory = SupplierCategory.OTHER
     notes: Optional[str] = None
 
+
 class SupplierCreate(SupplierBase):
     pass
 
+
 class SupplierUpdate(SupplierBase):
     name: Optional[str] = None
+
 
 class Supplier(SupplierBase):
     id: UUID
     user_id: UUID
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
+
 
 # Customer Schemas
 class CustomerBase(BaseModel):
@@ -37,11 +44,14 @@ class CustomerBase(BaseModel):
     customer_type: CustomerType = CustomerType.RETAIL
     notes: Optional[str] = None
 
+
 class CustomerCreate(CustomerBase):
     pass
 
+
 class CustomerUpdate(CustomerBase):
     name: Optional[str] = None
+
 
 class Customer(CustomerBase):
     id: UUID
@@ -49,6 +59,7 @@ class Customer(CustomerBase):
 
     class Config:
         from_attributes = True
+
 
 # Employee Schemas
 class EmployeeBase(BaseModel):
@@ -59,11 +70,14 @@ class EmployeeBase(BaseModel):
     start_date: Optional[date] = None
     is_active: bool = True
 
+
 class EmployeeCreate(EmployeeBase):
     pass
 
+
 class EmployeeUpdate(EmployeeBase):
     name: Optional[str] = None
+
 
 class Employee(EmployeeBase):
     id: UUID

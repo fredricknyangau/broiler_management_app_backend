@@ -1,7 +1,10 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.db.models.audit import AuditLog
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models.audit import AuditLog
+
 
 async def log_action(
     db: AsyncSession,
@@ -10,7 +13,7 @@ async def log_action(
     resource_type: Optional[str] = None,
     resource_id: Optional[str] = None,
     details: Optional[Dict[str, Any]] = None,
-    ip_address: Optional[str] = None
+    ip_address: Optional[str] = None,
 ):
     """
     Log an audit event.
@@ -22,7 +25,7 @@ async def log_action(
             resource_type=resource_type,
             resource_id=str(resource_id) if resource_id else None,
             details=details,
-            ip_address=ip_address
+            ip_address=ip_address,
         )
         db.add(log_entry)
         await db.commit()

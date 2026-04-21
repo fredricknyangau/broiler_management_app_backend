@@ -1,7 +1,9 @@
-from pydantic import BaseModel
-from typing import Optional, Dict, Any
 from datetime import datetime
+from typing import Any, Dict, Optional
 from uuid import UUID
+
+from pydantic import BaseModel
+
 
 class AuditLogBase(BaseModel):
     action: str
@@ -10,13 +12,15 @@ class AuditLogBase(BaseModel):
     details: Optional[Dict[str, Any]] = None
     ip_address: Optional[str] = None
 
+
 class AuditLogCreate(AuditLogBase):
     user_id: Optional[UUID] = None
+
 
 class AuditLogResponse(AuditLogBase):
     id: UUID
     user_id: Optional[UUID] = None
-    user_email: Optional[str] = None # Helper for frontend display
+    user_email: Optional[str] = None  # Helper for frontend display
     timestamp: datetime
 
     class Config:

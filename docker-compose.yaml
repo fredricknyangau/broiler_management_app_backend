@@ -38,9 +38,9 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: broiler_api
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8080
     ports:
-      - "8000:8000"
+      - "8080:8080"
     env_file:
       - .env
     environment:
@@ -121,7 +121,7 @@ services:
       - broiler_network
 
   pgadmin:
-    image: dpage/pgadmin4:latest
+    image: dpage/pgadmin4:8.5
     container_name: broiler_pgadmin
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@broiler.farm}

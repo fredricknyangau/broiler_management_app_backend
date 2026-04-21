@@ -2,6 +2,10 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
+*.pyo
+dist/
+*.egg-info/
 
 # Virtual Environment
 venv/
@@ -11,7 +15,6 @@ env/
 # Environment Variables
 .env
 .env.*
-.env.example
 .env.production.example
 
 # IDEs

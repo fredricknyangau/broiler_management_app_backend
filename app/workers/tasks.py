@@ -1,8 +1,10 @@
-from app.workers.celery_app import celery_app
-import logging
 import asyncio
+import logging
+
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
+
+from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
@@ -14,48 +16,51 @@ def test_task(message: str):
     return f"Processed: {message}"
 
 
-from app.db.session import AsyncSessionLocal
-from app.services.alert_service import AlertService
-from app.db.models.flock import Flock
 from app.db.models.daily_check import DailyCheck
 from app.db.models.events import MortalityEvent
+from app.db.models.flock import Flock
+from app.db.session import AsyncSessionLocal
 from app.schemas.daily_check import EventType
+from app.services.alert_service import AlertService
+
 
 async def evaluate_alerts_async(flock_id: str, check_date: str):
     async with AsyncSessionLocal() as db:
         try:
             alert_service = AlertService(db)
-            
+
             # 1. Fetch Flock
             result = await db.execute(select(Flock).filter(Flock.id == flock_id))
             flock = result.scalars().first()
             if not flock:
                 logger.error(f"Flock {flock_id} not found during alert eval")
                 return
-                
+
             # 2. Fetch DailyCheck
             result = await db.execute(
                 select(DailyCheck)
                 .options(selectinload(DailyCheck.events))
                 .filter(
-                    DailyCheck.flock_id == flock_id,
-                    DailyCheck.check_date == check_date
+                    DailyCheck.flock_id == flock_id, DailyCheck.check_date == check_date
                 )
             )
             daily_check = result.scalars().first()
-            
+
             if daily_check:
-                 # Sum mortality events linked to this check
-                 mortality_count = 0
-                 for event in daily_check.events:
-                     if event.event_type == EventType.MORTALITY:
-                         mortality_count += (event.count or 0)
-                
-                 if mortality_count > 0:
-                     await alert_service.check_mortality(flock.id, mortality_count, flock.initial_count)
-                     
+                # Sum mortality events linked to this check
+                mortality_count = 0
+                for event in daily_check.events:
+                    if event.event_type == EventType.MORTALITY:
+                        mortality_count += event.count or 0
+
+                if mortality_count > 0:
+                    await alert_service.check_mortality(
+                        flock.id, mortality_count, flock.initial_count
+                    )
+
         except Exception as e:
             logger.error(f"Error evaluating alerts: {e}")
+
 
 @celery_app.task
 def evaluate_alerts_task(flock_id: str, check_date: str):
@@ -72,9 +77,9 @@ def evaluate_alerts_task(flock_id: str, check_date: str):
     return {"status": "evaluated", "flock_id": flock_id}
 
 
-
 from app.db.models.events import MortalityEvent
 from app.db.models.finance import Sale
+
 
 async def _refresh_flock_stats_async() -> dict:
     """
@@ -83,19 +88,24 @@ async def _refresh_flock_stats_async() -> dict:
     as a health-check snapshot to catch data drift and alert generation delays.
     """
     from sqlalchemy import func
+
     from app.db.models.flock import Flock as FlockModel
 
     async with AsyncSessionLocal() as db:
         try:
             # Total active flocks
             active_res = await db.execute(
-                select(func.count()).select_from(FlockModel).filter(FlockModel.status == "active")
+                select(func.count())
+                .select_from(FlockModel)
+                .filter(FlockModel.status == "active")
             )
             active_count = active_res.scalar_one() or 0
 
             # Total initial birds in active flocks
             initial_res = await db.execute(
-                select(func.sum(FlockModel.initial_count)).filter(FlockModel.status == "active")
+                select(func.sum(FlockModel.initial_count)).filter(
+                    FlockModel.status == "active"
+                )
             )
             total_initial = initial_res.scalar() or 0
 
@@ -116,7 +126,9 @@ async def _refresh_flock_stats_async() -> dict:
             total_sold = sales_res.scalar() or 0
 
             current_birds = max(0, total_initial - total_mort - total_sold)
-            mortality_rate = round((total_mort / total_initial * 100), 2) if total_initial > 0 else 0
+            mortality_rate = (
+                round((total_mort / total_initial * 100), 2) if total_initial > 0 else 0
+            )
 
             summary = {
                 "active_flocks": active_count,

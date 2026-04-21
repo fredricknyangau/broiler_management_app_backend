@@ -1,14 +1,12 @@
-import httpx
 import base64
-from datetime import datetime
-from app.config import settings
+from datetime import datetime, timezone
+
+import httpx
 import structlog
+
 from app.config import settings
 
 logger = structlog.get_logger(__name__)
-
-# Base URLs — switch to production URL when deploying
-_MPESA_BASE = "https://sandbox.safaricom.co.ke"
 
 
 class MpesaService:
@@ -22,7 +20,9 @@ class MpesaService:
 
     async def _get_auth_token(self) -> str:
         """Fetch a short-lived OAuth2 bearer token from Safaricom."""
-        auth_url = f"{_MPESA_BASE}/oauth/v1/generate?grant_type=client_credentials"
+        auth_url = (
+            f"{settings.MPESA_BASE_URL}/oauth/v1/generate?grant_type=client_credentials"
+        )
         logger.info("Fetching M-Pesa OAuth token")
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.get(
@@ -52,10 +52,14 @@ class MpesaService:
         """
         logger.info(
             "Initiating STK Push",
-            extra={"phone": phone[-4:].zfill(len(phone)), "amount": amount, "ref": reference},
+            extra={
+                "phone": phone[-4:].zfill(len(phone)),
+                "amount": amount,
+                "ref": reference,
+            },
         )
 
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
         password_str = f"{settings.MPESA_SHORTCODE}{settings.MPESA_PASSKEY}{timestamp}"
         password = base64.b64encode(password_str.encode()).decode()
 
@@ -78,7 +82,7 @@ class MpesaService:
             headers = {"Authorization": f"Bearer {token}"}
             async with httpx.AsyncClient(timeout=30) as client:
                 response = await client.post(
-                    f"{_MPESA_BASE}/mpesa/stkpush/v1/processrequest",
+                    f"{settings.MPESA_BASE_URL}/mpesa/stkpush/v1/processrequest",
                     json=payload,
                     headers=headers,
                 )
@@ -108,7 +112,7 @@ class MpesaService:
         Returns:
             Safaricom query response dict. ResultCode == "0" means success.
         """
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
         password_str = f"{settings.MPESA_SHORTCODE}{settings.MPESA_PASSKEY}{timestamp}"
         password = base64.b64encode(password_str.encode()).decode()
 
@@ -124,7 +128,7 @@ class MpesaService:
             headers = {"Authorization": f"Bearer {token}"}
             async with httpx.AsyncClient(timeout=15) as client:
                 response = await client.post(
-                    f"{_MPESA_BASE}/mpesa/stkpushquery/v1/query",
+                    f"{settings.MPESA_BASE_URL}/mpesa/stkpushquery/v1/query",
                     json=payload,
                     headers=headers,
                 )
@@ -132,7 +136,10 @@ class MpesaService:
                 result = response.json()
                 logger.info(
                     "STK Query result",
-                    extra={"checkout_id": checkout_request_id, "code": result.get("ResultCode")},
+                    extra={
+                        "checkout_id": checkout_request_id,
+                        "code": result.get("ResultCode"),
+                    },
                 )
                 return result
 
@@ -146,4 +153,3 @@ class MpesaService:
 
 
 mpesa_service = MpesaService()
-

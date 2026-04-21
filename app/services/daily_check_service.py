@@ -1,38 +1,36 @@
-from typing import Dict, Any, List
-from uuid import UUID
 from datetime import date
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Any, Dict, List
+from uuid import UUID
+
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.db.models.daily_check import DailyCheck
-from app.db.models.events import (
-    MortalityEvent,
-    FeedConsumptionEvent,
-    VaccinationEvent,
-    WeightMeasurementEvent
-)
-from app.services.mortality_service import MortalityEventService
+from app.db.models.events import (FeedConsumptionEvent, MortalityEvent,
+                                  VaccinationEvent, WeightMeasurementEvent)
 from app.services.feed_service import FeedConsumptionService
+from app.services.mortality_service import MortalityEventService
 from app.services.vaccination_service import VaccinationService
 from app.services.weight_service import WeightMeasurementService
 
 
 class DailyCheckService:
     """Service for processing daily checks and events"""
-    
+
     def __init__(self, db: AsyncSession):
         self.db = db
         self.mortality_service = MortalityEventService(db)
         self.feed_service = FeedConsumptionService(db)
         self.vaccination_service = VaccinationService(db)
         self.weight_service = WeightMeasurementService(db)
-    
+
     async def process_daily_check(
         self,
         flock_id: UUID,
         check_date: date,
         observations: Dict[str, Any],
-        events: List[Dict[str, Any]]
+        events: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """
         Process daily check submission:
@@ -42,7 +40,7 @@ class DailyCheckService:
         """
         # Create or update daily check
         check = await self._upsert_daily_check(flock_id, check_date, observations)
-        
+
         # Process events
         events_processed = 0
         for event in events:
@@ -54,18 +52,18 @@ class DailyCheckService:
             else:
                 event_type = event.get("type")
                 event_data = event.get("data")
-            
+
             if not event_type or not event_data:
                 continue
-            
+
             # Add common fields
             event_data["flock_id"] = flock_id
             event_data["event_date"] = check_date
-            
+
             # Force Primary Key to match Idempotency Key (event_id)
             if "event_id" in event_data:
                 event_data["id"] = event_data["event_id"]
-            
+
             # Route to appropriate service
             if event_type == "mortality":
                 await self.mortality_service.create_event(event_data)
@@ -79,28 +77,21 @@ class DailyCheckService:
             elif event_type == "weight_measurement":
                 await self.weight_service.create_event(event_data)
                 events_processed += 1
-        
-        return {
-            "check_id": check.id,
-            "events_processed": events_processed
-        }
-    
+
+        return {"check_id": check.id, "events_processed": events_processed}
+
     async def _upsert_daily_check(
-        self,
-        flock_id: UUID,
-        check_date: date,
-        observations: Dict[str, Any]
+        self, flock_id: UUID, check_date: date, observations: Dict[str, Any]
     ) -> DailyCheck:
         """Create or update daily check (idempotent)"""
         # Check for existing
         result = await self.db.execute(
             select(DailyCheck).filter(
-                DailyCheck.flock_id == flock_id,
-                DailyCheck.check_date == check_date
+                DailyCheck.flock_id == flock_id, DailyCheck.check_date == check_date
             )
         )
         existing = result.scalars().first()
-        
+
         if existing:
             # Update existing
             for key, value in observations.items():
@@ -109,13 +100,9 @@ class DailyCheckService:
             await self.db.commit()
             await self.db.refresh(existing)
             return existing
-        
+
         # Create new
-        check = DailyCheck(
-            flock_id=flock_id,
-            check_date=check_date,
-            **observations
-        )
+        check = DailyCheck(flock_id=flock_id, check_date=check_date, **observations)
         self.db.add(check)
         await self.db.commit()
         await self.db.refresh(check)

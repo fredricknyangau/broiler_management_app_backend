@@ -1,19 +1,21 @@
 """admin/billing.py — Subscription and plan management endpoints."""
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, select, or_
-from sqlalchemy.orm import joinedload
-from typing import List, Optional, Any, Generic, TypeVar
-from uuid import UUID
-from datetime import datetime, timedelta
-from pydantic import BaseModel
 
-from app.api.deps import get_db, get_current_admin_user
+from datetime import datetime, timedelta, timezone
+from typing import Any, Generic, List, Optional, TypeVar
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from sqlalchemy import func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
+
+from app.api.deps import get_current_admin_user, get_db
+from app.db.models.subscription import (PlanType, Subscription,
+                                        SubscriptionPlan, SubscriptionStatus)
 from app.db.models.user import User
-from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType, SubscriptionPlan
-from app.schemas.billing import (
-    SubscriptionResponse, PlanResponse, PlanUpdate, PlanCreate, SubscriptionOverride,
-)
+from app.schemas.billing import (PlanCreate, PlanResponse, PlanUpdate,
+                                 SubscriptionOverride, SubscriptionResponse)
 from app.services.audit_service import log_action
 
 router = APIRouter()
@@ -64,12 +66,15 @@ async def update_user_subscription(
 
     result = await db.execute(
         select(Subscription)
-        .filter(Subscription.user_id == user_id, Subscription.status == SubscriptionStatus.ACTIVE)
+        .filter(
+            Subscription.user_id == user_id,
+            Subscription.status == SubscriptionStatus.ACTIVE,
+        )
         .order_by(Subscription.created_at.desc())
     )
     sub = result.scalars().first()
 
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     details = override.model_dump(exclude_unset=True)
 
     if sub:
@@ -121,20 +126,21 @@ async def assign_user_plan(
 
     existing_result = await db.execute(
         select(Subscription).filter(
-            Subscription.user_id == user_id, Subscription.status == SubscriptionStatus.ACTIVE
+            Subscription.user_id == user_id,
+            Subscription.status == SubscriptionStatus.ACTIVE,
         )
     )
     for sub in existing_result.scalars().all():
         sub.status = SubscriptionStatus.CANCELLED
-        sub.end_date = datetime.now()
+        sub.end_date = datetime.now(timezone.utc)
 
     new_sub = Subscription(
         user_id=user_id,
         plan_type=payload.plan_type,
         status=SubscriptionStatus.ACTIVE,
         amount="0",
-        start_date=datetime.now(),
-        mpesa_reference=f"MANUAL-{current_admin.id}-{int(datetime.now().timestamp())}",
+        start_date=datetime.now(timezone.utc),
+        mpesa_reference=f"MANUAL-{current_admin.id}-{int(datetime.now(timezone.utc).timestamp())}",
     )
     db.add(new_sub)
     await db.commit()
@@ -153,7 +159,7 @@ async def cancel_subscription(
     if not sub:
         raise HTTPException(status_code=404, detail="Subscription not found")
     sub.status = SubscriptionStatus.CANCELLED
-    sub.end_date = datetime.now()
+    sub.end_date = datetime.now(timezone.utc)
     await db.commit()
     return {"status": "success", "message": "Subscription cancelled"}
 
@@ -253,13 +259,16 @@ async def get_all_user_subscriptions(
 
 # ── Plan Management ─────────────────────────────────────────────────────────
 
+
 @router.get("/plans", response_model=List[PlanResponse])
 async def get_admin_plans(
     db: AsyncSession = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user),
 ):
     """List all subscription plan configurations."""
-    result = await db.execute(select(SubscriptionPlan).order_by(SubscriptionPlan.monthly_price.desc()))
+    result = await db.execute(
+        select(SubscriptionPlan).order_by(SubscriptionPlan.monthly_price.desc())
+    )
     return result.scalars().all()
 
 
@@ -271,7 +280,9 @@ async def update_subscription_plan(
     current_admin: User = Depends(get_current_admin_user),
 ):
     """Update a specific subscription plan's pricing or features."""
-    result = await db.execute(select(SubscriptionPlan).filter(SubscriptionPlan.id == plan_id))
+    result = await db.execute(
+        select(SubscriptionPlan).filter(SubscriptionPlan.id == plan_id)
+    )
     plan = result.scalars().first()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
@@ -283,7 +294,14 @@ async def update_subscription_plan(
     await db.commit()
     await db.refresh(plan)
 
-    await log_action(db, "UPDATE_PLAN", current_admin.id, "SubscriptionPlan", str(plan.id), update_data)
+    await log_action(
+        db,
+        "UPDATE_PLAN",
+        current_admin.id,
+        "SubscriptionPlan",
+        str(plan.id),
+        update_data,
+    )
     return plan
 
 
@@ -308,7 +326,14 @@ async def create_subscription_plan(
     await db.commit()
     await db.refresh(plan)
 
-    await log_action(db, "CREATE_PLAN", current_admin.id, "SubscriptionPlan", str(plan.id), plan_in.model_dump())
+    await log_action(
+        db,
+        "CREATE_PLAN",
+        current_admin.id,
+        "SubscriptionPlan",
+        str(plan.id),
+        plan_in.model_dump(),
+    )
     return plan
 
 
@@ -319,7 +344,9 @@ async def delete_subscription_plan(
     current_admin: User = Depends(get_current_admin_user),
 ):
     """Delete a subscription plan."""
-    result = await db.execute(select(SubscriptionPlan).filter(SubscriptionPlan.id == plan_id))
+    result = await db.execute(
+        select(SubscriptionPlan).filter(SubscriptionPlan.id == plan_id)
+    )
     plan = result.scalars().first()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
@@ -327,5 +354,10 @@ async def delete_subscription_plan(
     await db.delete(plan)
     await db.commit()
     await log_action(
-        db, "DELETE_PLAN", current_admin.id, "SubscriptionPlan", str(plan_id), {"plan_type": plan.plan_type}
+        db,
+        "DELETE_PLAN",
+        current_admin.id,
+        "SubscriptionPlan",
+        str(plan_id),
+        {"plan_type": plan.plan_type},
     )

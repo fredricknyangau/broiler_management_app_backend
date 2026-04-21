@@ -1,26 +1,54 @@
-from sqlalchemy import Column, String, Text, ForeignKey, Index, DateTime
-from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import relationship
-from app.db.base import Base, TimestampMixin, UUIDMixin
 from datetime import datetime, timezone
+
+from sqlalchemy import Column, DateTime, ForeignKey, Index, String, Text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import relationship
+
+from app.db.base import Base, TimestampMixin, UUIDMixin
+
 
 class Alert(Base, UUIDMixin, TimestampMixin):
     """
     System-generated alerts for flock health or inventory issues.
     """
+
     __tablename__ = "alerts"
 
-    flock_id = Column(UUID(as_uuid=True), ForeignKey("flocks.id", ondelete="CASCADE"), nullable=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, doc="Target user for Admin broadcasts")
-    alert_type = Column(String(100), nullable=False, doc="Type: disease_risk, low_feed, weight_deviation...")
-    severity = Column(String(20), nullable=False, doc="Severity: low, medium, high, critical")
+    flock_id = Column(
+        UUID(as_uuid=True), ForeignKey("flocks.id", ondelete="CASCADE"), nullable=True
+    )
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+        doc="Target user for Admin broadcasts",
+    )
+    alert_type = Column(
+        String(100),
+        nullable=False,
+        doc="Type: disease_risk, low_feed, weight_deviation...",
+    )
+    severity = Column(
+        String(20), nullable=False, doc="Severity: low, medium, high, critical"
+    )
     title = Column(String(255), nullable=False)
     message = Column(Text, nullable=False)
-    status = Column(String(20), default="active", nullable=False, doc="active, acknowledged, resolved")
-    triggered_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    status = Column(
+        String(20),
+        default="active",
+        nullable=False,
+        doc="active, acknowledged, resolved",
+    )
+    triggered_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
     acknowledged_at = Column(DateTime(timezone=True))
     resolved_at = Column(DateTime(timezone=True))
-    alert_metadata = Column(JSONB, doc="Contextual data (e.g. sensor readings, inventory id)")
+    alert_metadata = Column(
+        JSONB, doc="Contextual data (e.g. sensor readings, inventory id)"
+    )
 
     # Relationships
     flock = relationship("Flock", back_populates="alerts")

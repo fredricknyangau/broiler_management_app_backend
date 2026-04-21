@@ -1,7 +1,9 @@
-from pydantic import BaseModel
-from uuid import UUID
 from datetime import datetime
 from typing import Optional
+from uuid import UUID
+
+from pydantic import BaseModel
+
 
 class ResourceBase(BaseModel):
     title: str
@@ -10,8 +12,10 @@ class ResourceBase(BaseModel):
     category: str = "general"
     icon: Optional[str] = None
 
+
 class ResourceCreate(ResourceBase):
     pass
+
 
 class ResourceUpdate(BaseModel):
     title: Optional[str] = None
@@ -19,6 +23,7 @@ class ResourceUpdate(BaseModel):
     content: Optional[str] = None
     category: Optional[str] = None
     icon: Optional[str] = None
+
 
 class ResourceResponse(ResourceBase):
     id: UUID

@@ -13,7 +13,9 @@ class Settings(BaseSettings):
     )
 
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://broiler_user:broiler_pass@localhost:5432/broiler_farm_db"
+    DATABASE_URL: str = (
+        "postgresql+asyncpg://broiler_user:broiler_pass@localhost:5432/broiler_farm_db"
+    )
 
     @property
     def ASYNC_DATABASE_URL(self) -> str:
@@ -98,6 +100,8 @@ class Settings(BaseSettings):
     MPESA_PASSKEY: str = "place_holder"
     MPESA_SHORTCODE: str = "174379"
     MPESA_CALLBACK_URL: str = "https://your-domain.com/api/v1/billing/mpesa/callback"
+    # Defaults to sandbox — set to https://api.safaricom.co.ke in production .env
+    MPESA_BASE_URL: str = "https://sandbox.safaricom.co.ke"
 
     # AI Integration
     LLM_PROVIDER: str = "openai"
@@ -105,23 +109,25 @@ class Settings(BaseSettings):
     GEMINI_MODEL: str = "gemini-1.5-flash"
 
     # OAuth / SSO
-    GOOGLE_CLIENT_ID: Optional[str] = None       # From GCP Console
-    APPLE_CLIENT_ID: Optional[str] = None        # Apple Service ID (e.g. com.kukufiti.app)
-    APPLE_TEAM_ID: Optional[str] = None          # 10-char Apple Team ID
-    APPLE_KEY_ID: Optional[str] = None           # Key ID from Apple Developer Portal
+    GOOGLE_CLIENT_ID: Optional[str] = None  # From GCP Console
+    APPLE_CLIENT_ID: Optional[str] = None  # Apple Service ID (e.g. com.kukufiti.app)
+    APPLE_TEAM_ID: Optional[str] = None  # 10-char Apple Team ID
+    APPLE_KEY_ID: Optional[str] = None  # Key ID from Apple Developer Portal
 
     # ────────────────────────────────────────────────────────────────
     # MONITORING & ERROR TRACKING
     # ────────────────────────────────────────────────────────────────
-    SENTRY_DSN: Optional[str] = None             # Sentry error tracking
-    SENTRY_ENABLED: bool = False                 # Enable Sentry monitoring
-    SENTRY_TRACES_SAMPLE_RATE: float = 0.1       # Sample 10% of transactions (performance monitoring)
+    SENTRY_DSN: Optional[str] = None  # Sentry error tracking
+    SENTRY_ENABLED: bool = False  # Enable Sentry monitoring
+    SENTRY_TRACES_SAMPLE_RATE: float = (
+        0.1  # Sample 10% of transactions (performance monitoring)
+    )
 
     # ────────────────────────────────────────────────────────────────
     # SECURITY VALIDATORS
     # ────────────────────────────────────────────────────────────────
 
-    @field_validator('SECRET_KEY')
+    @field_validator("SECRET_KEY")
     @classmethod
     def validate_secret_key(cls, v):
         """Ensure SECRET_KEY is not the default placeholder in production."""
@@ -135,7 +141,7 @@ class Settings(BaseSettings):
             raise ValueError("❌ SECRET_KEY must be at least 32 characters long")
         return v
 
-    @field_validator('DATABASE_URL')
+    @field_validator("DATABASE_URL")
     @classmethod
     def validate_database_url(cls, v):
         """Ensure DATABASE_URL is configured."""
@@ -151,13 +157,14 @@ class Settings(BaseSettings):
             )
         return v
 
-    @field_validator('DEBUG')
+    @field_validator("DEBUG")
     @classmethod
     def validate_debug_mode(cls, v):
         """Warn if DEBUG is True in production environment."""
         if v is True:
             import os
-            if os.getenv('ENVIRONMENT') == 'production':
+
+            if os.getenv("ENVIRONMENT") == "production":
                 raise ValueError(
                     "❌ DEBUG=True detected in production!\n"
                     "   Set DEBUG=False in production environment variables"

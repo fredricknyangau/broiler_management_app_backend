@@ -1,17 +1,20 @@
 """admin/config.py — System configuration and audit log endpoints."""
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_
-from sqlalchemy.orm import joinedload
-from typing import List, Optional, Any, Generic, TypeVar
-from pydantic import BaseModel
 
-from app.api.deps import get_db, get_current_admin_user
-from app.db.models.user import User
-from app.db.models.config import SystemConfig
+from typing import Any, Generic, List, Optional, TypeVar
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
+
+from app.api.deps import get_current_admin_user, get_db
 from app.db.models.audit import AuditLog
-from app.schemas.config import SystemConfigCreate, SystemConfigUpdate, SystemConfigResponse
+from app.db.models.config import SystemConfig
+from app.db.models.user import User
 from app.schemas.audit import AuditLogResponse
+from app.schemas.config import (SystemConfigCreate, SystemConfigResponse,
+                                SystemConfigUpdate)
 from app.services.audit_service import log_action
 
 router = APIRouter()
@@ -48,7 +51,9 @@ async def get_system_configs(
     added_new = False
     for key, val in _DEFAULT_CONFIGS.items():
         if key not in existing_keys:
-            new_conf = SystemConfig(key=key, value=val, category="system", is_encrypted=False)
+            new_conf = SystemConfig(
+                key=key, value=val, category="system", is_encrypted=False
+            )
             db.add(new_conf)
             configs.append(new_conf)
             added_new = True
@@ -66,7 +71,9 @@ async def create_or_update_config(
     current_admin: User = Depends(get_current_admin_user),
 ):
     """Create or update a configuration key."""
-    result = await db.execute(select(SystemConfig).filter(SystemConfig.key == config_in.key))
+    result = await db.execute(
+        select(SystemConfig).filter(SystemConfig.key == config_in.key)
+    )
     existing = result.scalars().first()
 
     if existing:
@@ -82,11 +89,19 @@ async def create_or_update_config(
     await db.commit()
     await db.refresh(db_obj)
 
-    await log_action(db, action, current_admin.id, "SystemConfig", str(db_obj.id), {"key": config_in.key})
+    await log_action(
+        db,
+        action,
+        current_admin.id,
+        "SystemConfig",
+        str(db_obj.id),
+        {"key": config_in.key},
+    )
     return db_obj
 
 
 # ── Audit Logs ───────────────────────────────────────────────────────────────
+
 
 @router.get("/audit-logs", response_model=PaginatedResponse[AuditLogResponse])
 async def get_audit_logs(

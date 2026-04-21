@@ -1,7 +1,9 @@
-from pydantic import BaseModel
-from uuid import UUID
-from datetime import datetime, date
+from datetime import date, datetime
 from typing import Optional
+from uuid import UUID
+
+from pydantic import BaseModel
+
 
 class ScheduledTaskBase(BaseModel):
     title: str
@@ -11,8 +13,10 @@ class ScheduledTaskBase(BaseModel):
     category: str = "general"
     flock_id: Optional[UUID] = None
 
+
 class ScheduledTaskCreate(ScheduledTaskBase):
-    recurrence_interval: Optional[str] = None # e.g., 'daily', 'weekly'
+    recurrence_interval: Optional[str] = None  # e.g., 'daily', 'weekly'
+
 
 class ScheduledTaskUpdate(BaseModel):
     title: Optional[str] = None
@@ -21,6 +25,7 @@ class ScheduledTaskUpdate(BaseModel):
     status: Optional[str] = None
     category: Optional[str] = None
     flock_id: Optional[UUID] = None
+
 
 class ScheduledTaskResponse(ScheduledTaskBase):
     id: UUID

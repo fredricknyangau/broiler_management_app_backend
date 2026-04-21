@@ -3,6 +3,7 @@ FinanceService — business logic layer for expenditures and sales.
 
 Routers are thin HTTP adapters; all domain logic lives here.
 """
+
 from __future__ import annotations
 
 from datetime import date
@@ -14,8 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.finance import Expenditure, Sale
 from app.db.models.inventory import InventoryItem
-from app.db.models.inventory_history import InventoryHistory, InventoryAction
-
+from app.db.models.inventory_history import InventoryAction, InventoryHistory
 
 # ── Whitelisted expense categories for the Starter plan ──────────────────────
 STARTER_EXPENSE_CATEGORIES: frozenset[str] = frozenset(
@@ -50,8 +50,12 @@ class FinanceService:
             and cost_per_unit are updated.
           - An InventoryHistory entry is written for every stock movement.
         """
-        expense_data = {k: v for k, v in data.items()
-                        if k not in ("create_inventory_item", "new_inventory_name", "new_inventory_unit")}
+        expense_data = {
+            k: v
+            for k, v in data.items()
+            if k
+            not in ("create_inventory_item", "new_inventory_name", "new_inventory_unit")
+        }
 
         inventory_id: UUID | None = data.get("inventory_item_id")
 
@@ -95,7 +99,11 @@ class FinanceService:
     ) -> Expenditure:
         """Update an expenditure, optionally creating a new linked inventory item."""
         # Strip special fields before setattr loop
-        for special in ("create_inventory_item", "new_inventory_name", "new_inventory_unit"):
+        for special in (
+            "create_inventory_item",
+            "new_inventory_name",
+            "new_inventory_unit",
+        ):
             update_data.pop(special, None)
 
         if create_inventory_item and new_inventory_name:
@@ -134,7 +142,9 @@ class FinanceService:
     ) -> UUID:
         """Create a new InventoryItem and an initial PURCHASE history record."""
         # Map expense category → inventory category where sensible
-        inv_category = category if category in ("feed", "medicine", "equipment") else "other"
+        inv_category = (
+            category if category in ("feed", "medicine", "equipment") else "other"
+        )
         cost_per_unit = (amount / quantity) if quantity else 0.0
 
         new_item = InventoryItem(

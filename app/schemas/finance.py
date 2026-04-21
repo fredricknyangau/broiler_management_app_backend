@@ -1,10 +1,13 @@
-from pydantic import BaseModel, Field, UUID4, validator
 import datetime
-from typing import Optional
 from decimal import Decimal
+from typing import Optional
+
+from pydantic import UUID4, BaseModel, Field, validator
+
 
 class ExpenditureBase(BaseModel):
     """Base fields for Expenditure."""
+
     date: datetime.date
     category: str = Field(..., max_length=50)
     description: str = Field(..., max_length=255)
@@ -13,19 +16,23 @@ class ExpenditureBase(BaseModel):
     unit: Optional[str] = None
     mpesa_transaction_id: Optional[str] = None
 
+
 class ExpenditureCreate(ExpenditureBase):
     """Schema for creating a new expenditure."""
+
     flock_id: Optional[UUID4] = None
     inventory_item_id: Optional[UUID4] = None
     supplier_id: Optional[UUID4] = None
-    
+
     # Optional: Create new inventory item on the fly
     create_inventory_item: bool = False
     new_inventory_name: Optional[str] = None
     new_inventory_unit: Optional[str] = None
 
+
 class ExpenditureUpdate(BaseModel):
     """Schema for updating an expenditure."""
+
     date: Optional[datetime.date] = None
     category: Optional[str] = Field(None, max_length=50)
     description: Optional[str] = Field(None, max_length=255)
@@ -33,26 +40,30 @@ class ExpenditureUpdate(BaseModel):
     quantity: Optional[Decimal] = None
     unit: Optional[str] = None
     mpesa_transaction_id: Optional[str] = None
-    
+
     # Inventory Linkage for Updates
     inventory_item_id: Optional[UUID4] = None
     create_inventory_item: bool = False
     new_inventory_name: Optional[str] = None
     new_inventory_unit: Optional[str] = None
 
+
 class ExpenditureResponse(ExpenditureBase):
     """Schema for expenditure response."""
+
     id: UUID4
     flock_id: Optional[UUID4]
     farmer_id: UUID4
     inventory_item_id: Optional[UUID4]
     supplier_id: Optional[UUID4]
-    
+
     class Config:
         from_attributes = True
 
+
 class SaleBase(BaseModel):
     """Base fields for Sale."""
+
     date: datetime.date
     quantity: int = Field(..., gt=0)
     price_per_bird: Decimal = Field(..., ge=0)
@@ -63,13 +74,17 @@ class SaleBase(BaseModel):
     mpesa_transaction_id: Optional[str] = None
     average_weight_grams: Optional[Decimal] = None
 
+
 class SaleCreate(SaleBase):
     """Schema for recording a new sale."""
+
     flock_id: UUID4
     customer_id: Optional[UUID4] = None
 
+
 class SaleUpdate(BaseModel):
     """Schema for updating a sale."""
+
     date: Optional[datetime.date] = None
     quantity: Optional[int] = Field(None, gt=0)
     price_per_bird: Optional[Decimal] = Field(None, ge=0)
@@ -80,11 +95,13 @@ class SaleUpdate(BaseModel):
     mpesa_transaction_id: Optional[str] = None
     average_weight_grams: Optional[Decimal] = None
 
+
 class SaleResponse(SaleBase):
     """Schema for sale response."""
+
     id: UUID4
     flock_id: UUID4
     farmer_id: UUID4
-    
+
     class Config:
         from_attributes = True

@@ -1,8 +1,10 @@
-from uuid import UUID
 from datetime import date, timedelta
 from typing import Optional
-from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
+
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.db.models.events import MortalityEvent
 from app.services.base_event_service import BaseEventService
 
@@ -29,29 +31,21 @@ class MortalityEventService(BaseEventService[MortalityEvent]):
             return 0.0
         return round((total_deaths / initial_count) * 100, 2)
 
-    async def get_weekly_mortality(
-        self, 
-        flock_id: UUID, 
-        week_start: date
-    ) -> int:
+    async def get_weekly_mortality(self, flock_id: UUID, week_start: date) -> int:
         """Get mortality count for a specific week"""
         week_end = week_start + timedelta(days=6)
-        events = await self.get_by_flock(flock_id, start_date=week_start, end_date=week_end)
+        events = await self.get_by_flock(
+            flock_id, start_date=week_start, end_date=week_end
+        )
         return sum(event.count for event in events)
 
     async def get_mortality_by_cause(self, flock_id: UUID) -> dict:
         """Get mortality counts grouped by cause"""
         result = await self.db.execute(
-            select(
-                MortalityEvent.cause,
-                func.sum(MortalityEvent.count).label('total')
-            ).filter(
-                MortalityEvent.flock_id == flock_id
-            ).group_by(
-                MortalityEvent.cause
-            )
+            select(MortalityEvent.cause, func.sum(MortalityEvent.count).label("total"))
+            .filter(MortalityEvent.flock_id == flock_id)
+            .group_by(MortalityEvent.cause)
         )
         results = result.all()
-        
-        return {cause or "Unknown": int(total) for cause, total in results}
 
+        return {cause or "Unknown": int(total) for cause, total in results}

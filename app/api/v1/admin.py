@@ -4,9 +4,11 @@ app/api/v1/admin.py — Admin module master router.
 This replaces the old 775-line monolithic admin router. All endpoints have been
 split into domain-specific sub-routers in `app/api/v1/admin/`.
 """
+
 from fastapi import APIRouter
 
-from app.api.v1.admin import users_router, billing_router, config_router, analytics_router
+from app.api.v1.admin import (analytics_router, billing_router, config_router,
+                              users_router)
 
 router = APIRouter()
 

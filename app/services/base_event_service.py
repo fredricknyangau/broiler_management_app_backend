@@ -1,12 +1,14 @@
-from typing import TypeVar, Generic, Type, Optional, List
-from uuid import UUID
 from datetime import date
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Generic, List, Optional, Type, TypeVar
+from uuid import UUID
+
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.db.base import Base
 
-T = TypeVar('T', bound=Base)
+T = TypeVar("T", bound=Base)
 
 
 class BaseEventService(Generic[T]):
@@ -25,7 +27,7 @@ class BaseEventService(Generic[T]):
         Returns existing event if event_id already exists.
         """
         event_id = event_data.get("event_id")
-        
+
         # Check for existing event (idempotency)
         existing = await self.get_by_event_id(event_id)
         if existing:
@@ -48,29 +50,33 @@ class BaseEventService(Generic[T]):
 
     async def get_by_id(self, event_id: UUID) -> Optional[T]:
         """Get event by primary key"""
-        result = await self.db.execute(select(self.model).filter(self.model.id == event_id))
+        result = await self.db.execute(
+            select(self.model).filter(self.model.id == event_id)
+        )
         return result.scalars().first()
 
     async def get_by_event_id(self, event_id: UUID) -> Optional[T]:
         """Get event by idempotency key"""
-        result = await self.db.execute(select(self.model).filter(self.model.event_id == event_id))
+        result = await self.db.execute(
+            select(self.model).filter(self.model.event_id == event_id)
+        )
         return result.scalars().first()
 
     async def get_by_flock(
-        self, 
-        flock_id: UUID, 
+        self,
+        flock_id: UUID,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[T]:
         """Get events for a specific flock with optional date range"""
         stmt = select(self.model).filter(self.model.flock_id == flock_id)
-        
+
         if start_date:
             stmt = stmt.filter(self.model.event_date >= start_date)
         if end_date:
             stmt = stmt.filter(self.model.event_date <= end_date)
-        
+
         stmt = stmt.order_by(self.model.event_date.desc()).limit(limit)
         result = await self.db.execute(stmt)
         return result.scalars().all()
@@ -80,7 +86,7 @@ class BaseEventService(Generic[T]):
         event = await self.get_by_id(event_id)
         if not event:
             return False
-        
+
         await self.db.delete(event)
         await self.db.commit()
         return True
@@ -90,9 +96,10 @@ class BaseEventService(Generic[T]):
         # Optimized count? For now, list len or simple query
         # Correct way in 2.0: select(func.count()).select_from(Model)...
         from sqlalchemy import func
+
         result = await self.db.execute(
-            select(func.count()).select_from(self.model).filter(self.model.flock_id == flock_id)
+            select(func.count())
+            .select_from(self.model)
+            .filter(self.model.flock_id == flock_id)
         )
         return result.scalar_one()
-
-

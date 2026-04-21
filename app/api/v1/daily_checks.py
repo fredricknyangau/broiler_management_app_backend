@@ -1,49 +1,55 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from uuid import UUID
 from datetime import date, timedelta
-from app.api.deps import get_db, get_current_user, set_tenant_context
-from app.db.models.user import User
-from app.db.models.flock import Flock
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_current_user, get_db, set_tenant_context
 from app.db.models.daily_check import DailyCheck
-from app.schemas.daily_check import DailyCheckCreate, DailyCheckResponse, EventType
+from app.db.models.flock import Flock
+from app.db.models.user import User
+from app.schemas.daily_check import (DailyCheckCreate, DailyCheckResponse,
+                                     EventType)
 from app.services.daily_check_service import DailyCheckService
 from app.workers.tasks import evaluate_alerts_task
 
 router = APIRouter()
 
 
-@router.post("/daily-checks", response_model=DailyCheckResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/daily-checks",
+    response_model=DailyCheckResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_daily_check(
     check_data: DailyCheckCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Submit daily check with observations and events (batch endpoint).
     """
     # Set tenant context for RLS
     await set_tenant_context(db, current_user)
-    
+
     # Verify flock ownership
     result = await db.execute(
         select(Flock).filter(
-            Flock.id == check_data.flock_id,
-            Flock.farmer_id == current_user.id
+            Flock.id == check_data.flock_id, Flock.farmer_id == current_user.id
         )
     )
     flock = result.scalars().first()
-    
+
     if not flock:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Flock {check_data.flock_id} not found"
+            detail=f"Flock {check_data.flock_id} not found",
         )
-    
+
     # Create daily check service
     service = DailyCheckService(db)
-    
+
     try:
         # Process the check and events
         result = await service.process_daily_check(
@@ -58,30 +64,26 @@ async def create_daily_check(
                 "water_level": check_data.water_level,
                 "general_notes": check_data.general_notes,
                 "check_time": check_data.check_time,
-                "recorded_by": current_user.id
+                "recorded_by": current_user.id,
             },
-            events=check_data.events
+            events=check_data.events,
         )
-        
+
         # Queue alert evaluation (async background task)
         evaluate_alerts_task.delay(
-            flock_id=str(check_data.flock_id),
-            check_date=str(check_data.check_date)
+            flock_id=str(check_data.flock_id), check_date=str(check_data.check_date)
         )
-        
+
         return DailyCheckResponse(
             check_id=result["check_id"],
             flock_id=check_data.flock_id,
             check_date=check_data.check_date,
             events_processed=result["events_processed"],
-            alerts_triggered=[]  # Alerts are processed asynchronously
+            alerts_triggered=[],  # Alerts are processed asynchronously
         )
-        
+
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/daily-checks/{flock_id}")
@@ -91,43 +93,42 @@ async def get_daily_checks(
     end_date: date = None,
     limit: int = 30,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get daily checks for a flock with optional date range.
     """
     await set_tenant_context(db, current_user)
-    
+
     # Verify flock ownership
     result = await db.execute(
-        select(Flock).filter(
-            Flock.id == flock_id,
-            Flock.farmer_id == current_user.id
-        )
+        select(Flock).filter(Flock.id == flock_id, Flock.farmer_id == current_user.id)
     )
     flock = result.scalars().first()
-    
+
     if not flock:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Flock {flock_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Flock {flock_id} not found"
         )
-    
+
     # Default to last 30 days if no dates provided
     if not end_date:
         end_date = date.today()
     if not start_date:
         start_date = end_date - timedelta(days=30)
-    
+
     result = await db.execute(
-        select(DailyCheck).filter(
+        select(DailyCheck)
+        .filter(
             DailyCheck.flock_id == flock_id,
             DailyCheck.check_date >= start_date,
-            DailyCheck.check_date <= end_date
-        ).order_by(DailyCheck.check_date.desc()).limit(limit)
+            DailyCheck.check_date <= end_date,
+        )
+        .order_by(DailyCheck.check_date.desc())
+        .limit(limit)
     )
     checks = result.scalars().all()
-    
+
     return checks
 
 
@@ -136,40 +137,35 @@ async def get_daily_check_by_date(
     flock_id: UUID,
     check_date: date,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get specific daily check by date.
     """
     await set_tenant_context(db, current_user)
-    
+
     # Verify flock ownership
     result = await db.execute(
-        select(Flock).filter(
-            Flock.id == flock_id,
-            Flock.farmer_id == current_user.id
-        )
+        select(Flock).filter(Flock.id == flock_id, Flock.farmer_id == current_user.id)
     )
     flock = result.scalars().first()
 
     if not flock:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Flock {flock_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Flock {flock_id} not found"
         )
-    
+
     result = await db.execute(
         select(DailyCheck).filter(
-            DailyCheck.flock_id == flock_id,
-            DailyCheck.check_date == check_date
+            DailyCheck.flock_id == flock_id, DailyCheck.check_date == check_date
         )
     )
     check = result.scalars().first()
-    
+
     if not check:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No check found for {check_date}"
+            detail=f"No check found for {check_date}",
         )
-    
+
     return check

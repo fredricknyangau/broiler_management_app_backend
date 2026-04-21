@@ -48,7 +48,7 @@ RUN chown -R appuser:appgroup /app
 USER appuser
 
 # Expose port
-EXPOSE 8000
+EXPOSE 8080
 
 # Make start script executable (if not already)
 RUN chmod +x start.sh

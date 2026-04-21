@@ -1,7 +1,9 @@
-from pydantic import BaseModel, Field, ConfigDict
-from uuid import UUID
 from datetime import datetime
 from typing import List, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
 
 # --- CATEGORY ---
 class CategoryBase(BaseModel):
@@ -11,9 +13,11 @@ class CategoryBase(BaseModel):
     color: str = "#4CAF50"
     icon: Optional[str] = "layers"
 
+
 class CategoryResponse(CategoryBase):
     id: UUID
     model_config = ConfigDict(from_attributes=True)
+
 
 # --- USER MINI PROFILE ---
 class AuthorMini(BaseModel):
@@ -22,12 +26,15 @@ class AuthorMini(BaseModel):
     role: str = "FARMER"
     model_config = ConfigDict(from_attributes=True)
 
+
 # --- COMMENT ---
 class CommentBase(BaseModel):
     content: str
 
+
 class CommentCreate(CommentBase):
     post_id: UUID
+
 
 class CommentResponse(CommentBase):
     id: UUID
@@ -37,6 +44,7 @@ class CommentResponse(CommentBase):
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
+
 # --- POST ---
 class PostBase(BaseModel):
     title: str
@@ -45,13 +53,16 @@ class PostBase(BaseModel):
     image_url: Optional[str] = None
     images: List[str] = []
 
+
 class PostCreate(PostBase):
     pass
+
 
 class PostUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
     is_closed: Optional[bool] = None
+
 
 class PostResponse(PostBase):
     id: UUID
@@ -63,8 +74,8 @@ class PostResponse(PostBase):
     is_pinned: bool = False
     is_closed: bool = False
     created_at: datetime
-    
+
     # Check if liked by current user (injected in router)
     liked_by_me: bool = False
-    
+
     model_config = ConfigDict(from_attributes=True)

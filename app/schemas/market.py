@@ -1,7 +1,9 @@
-from pydantic import BaseModel, UUID4, Field
 from datetime import date
-from typing import Optional
 from decimal import Decimal
+from typing import Optional
+
+from pydantic import UUID4, BaseModel, Field
+
 
 class MarketPriceBase(BaseModel):
     price_date: date
@@ -12,8 +14,10 @@ class MarketPriceBase(BaseModel):
     source: Optional[str] = Field(None, max_length=255)
     notes: Optional[str] = Field(None, max_length=255)
 
+
 class MarketPriceCreate(MarketPriceBase):
     pass
+
 
 class MarketPriceResponse(MarketPriceBase):
     id: UUID4

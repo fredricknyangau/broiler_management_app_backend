@@ -5,34 +5,31 @@ All business logic lives in FinanceService.  Subscription plan enforcement uses
 the shared ``get_plan_type`` dependency from ``deps.py`` — no inline duplicated
 subscription lookups.
 """
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
-from fastapi.responses import StreamingResponse
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from typing import List
-from uuid import UUID
-from datetime import date, timedelta
+
 import csv
 import io
+from datetime import date, timedelta
+from typing import List
+from uuid import UUID
 
-from app.api.deps import (
-    get_db,
-    get_current_user,
-    get_plan_type,
-    set_tenant_context,
-    check_professional_subscription,
-    get_current_non_viewer,
-)
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import (check_professional_subscription,
+                          get_current_non_viewer, get_current_user, get_db,
+                          get_plan_type, set_tenant_context)
 from app.db.models.finance import Expenditure, Sale
-from app.db.models.user import User
 from app.db.models.inventory import InventoryItem
 from app.db.models.subscription import PlanType
-from app.schemas.finance import (
-    ExpenditureCreate, ExpenditureResponse, ExpenditureUpdate,
-    SaleCreate, SaleResponse, SaleUpdate,
-)
-from app.services.finance_service import FinanceService, STARTER_EXPENSE_CATEGORIES
+from app.db.models.user import User
+from app.schemas.finance import (ExpenditureCreate, ExpenditureResponse,
+                                 ExpenditureUpdate, SaleCreate, SaleResponse,
+                                 SaleUpdate)
 from app.services.alert_service import AlertService
+from app.services.finance_service import (STARTER_EXPENSE_CATEGORIES,
+                                          FinanceService)
 from app.services.mpesa_service import mpesa_service
 
 router = APIRouter()
@@ -40,7 +37,12 @@ router = APIRouter()
 
 # ─── Expenditures ────────────────────────────────────────────────────────────
 
-@router.post("/expenditures", response_model=ExpenditureResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/expenditures",
+    response_model=ExpenditureResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_expenditure(
     item_in: ExpenditureCreate,
     background_tasks: BackgroundTasks,
@@ -49,7 +51,10 @@ async def create_expenditure(
     current_plan: str = Depends(get_plan_type),
 ):
     """Record a new expense."""
-    if current_plan == PlanType.STARTER and item_in.category.lower() not in STARTER_EXPENSE_CATEGORIES:
+    if (
+        current_plan == PlanType.STARTER
+        and item_in.category.lower() not in STARTER_EXPENSE_CATEGORIES
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Custom expense categories require a Professional Plan. Allowed: {', '.join(STARTER_EXPENSE_CATEGORIES)}.",
@@ -66,7 +71,9 @@ async def create_expenditure(
 
     # Check Low Stock alert after linking to inventory
     if item.inventory_item_id:
-        result = await db.execute(select(InventoryItem).filter(InventoryItem.id == item.inventory_item_id))
+        result = await db.execute(
+            select(InventoryItem).filter(InventoryItem.id == item.inventory_item_id)
+        )
         inv_item = result.scalars().first()
         if inv_item:
             alert_service = AlertService(db)
@@ -113,13 +120,19 @@ async def update_expenditure(
 ):
     """Update an expense."""
     result = await db.execute(
-        select(Expenditure).filter(Expenditure.id == item_id, Expenditure.farmer_id == current_user.id)
+        select(Expenditure).filter(
+            Expenditure.id == item_id, Expenditure.farmer_id == current_user.id
+        )
     )
     item = result.scalars().first()
     if not item:
         raise HTTPException(status_code=404, detail="Expenditure not found")
 
-    if item_in.category and current_plan == PlanType.STARTER and item_in.category.lower() not in STARTER_EXPENSE_CATEGORIES:
+    if (
+        item_in.category
+        and current_plan == PlanType.STARTER
+        and item_in.category.lower() not in STARTER_EXPENSE_CATEGORIES
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Custom expense categories require a Professional Plan. Allowed: {', '.join(STARTER_EXPENSE_CATEGORIES)}.",
@@ -144,7 +157,9 @@ async def delete_expenditure(
 ):
     """Delete an expenditure."""
     result = await db.execute(
-        select(Expenditure).filter(Expenditure.id == item_id, Expenditure.farmer_id == current_user.id)
+        select(Expenditure).filter(
+            Expenditure.id == item_id, Expenditure.farmer_id == current_user.id
+        )
     )
     item = result.scalars().first()
     if not item:
@@ -154,6 +169,7 @@ async def delete_expenditure(
 
 
 # ─── Sales ────────────────────────────────────────────────────────────────────
+
 
 @router.post("/sales", response_model=SaleResponse, status_code=status.HTTP_201_CREATED)
 async def create_sale(
@@ -249,6 +265,7 @@ async def delete_sale(
 
 # ─── Export ──────────────────────────────────────────────────────────────────
 
+
 @router.get("/export", dependencies=[Depends(check_professional_subscription)])
 async def export_financials(
     db: AsyncSession = Depends(get_db),
@@ -264,9 +281,13 @@ async def export_financials(
 
     sales_res = await db.execute(select(Sale).filter(Sale.farmer_id == current_user.id))
     for s in sales_res.scalars().all():
-        writer.writerow([s.date, "Income", "Chicken Sales", float(s.total_amount), s.notes or ""])
+        writer.writerow(
+            [s.date, "Income", "Chicken Sales", float(s.total_amount), s.notes or ""]
+        )
 
-    expenses_res = await db.execute(select(Expenditure).filter(Expenditure.farmer_id == current_user.id))
+    expenses_res = await db.execute(
+        select(Expenditure).filter(Expenditure.farmer_id == current_user.id)
+    )
     for e in expenses_res.scalars().all():
         writer.writerow([e.date, "Expense", e.category, float(e.amount), e.description])
 

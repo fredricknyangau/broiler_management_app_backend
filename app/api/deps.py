@@ -1,35 +1,36 @@
-from typing import Generator
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text, select
-from jose import JWTError, jwt
 from uuid import UUID
 
-from app.db.session import get_db
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.security import ALGORITHM, SECRET_KEY
+from app.db.models.subscription import (PlanType, Subscription,
+                                        SubscriptionStatus)
 from app.db.models.user import User, UserRole
-from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType
-from app.core.security import SECRET_KEY, ALGORITHM
+from app.db.session import get_db
 
 security = HTTPBearer()
 
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ) -> User:
     """
     Extract and validate JWT token, return current user.
     Usage: current_user: User = Depends(get_current_user)
     """
     token = credentials.credentials
-    
+
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
@@ -37,31 +38,30 @@ async def get_current_user(
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-    
+
     # Set RLS context using parameterized query — never interpolate user-controlled
     # values directly into SQL strings (SQL injection via SET LOCAL).
     await db.execute(
         text("SELECT set_config('app.current_user_id', :uid, true)"),
         {"uid": str(user_id)},
     )
-    
+
     # Async query
     result = await db.execute(select(User).filter(User.id == UUID(user_id)))
     user = result.scalars().first()
-    
+
     if user is None:
         raise credentials_exception
-    
+
     if not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Inactive user"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user"
         )
-    
+
     # Also set admin flag if applicable for global bypass policies
     if user.role == UserRole.ADMIN or user.is_superuser:
         await db.execute(text("SELECT set_config('app.is_admin', 'true', true)"))
-    
+
     return user
 
 
@@ -96,9 +96,10 @@ def get_current_active_superuser(
     if not current_user.is_superuser and current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="The user doesn't have enough privileges"
+            detail="The user doesn't have enough privileges",
         )
     return current_user
+
 
 def get_current_admin_user(
     current_user: User = Depends(get_current_user),
@@ -109,9 +110,10 @@ def get_current_admin_user(
     if current_user.role != UserRole.ADMIN and not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="The user doesn't have enough privileges"
+            detail="The user doesn't have enough privileges",
         )
     return current_user
+
 
 def get_current_manager_user(
     current_user: User = Depends(get_current_user),
@@ -119,12 +121,16 @@ def get_current_manager_user(
     """
     Dependency to check if current user is a manager or admin.
     """
-    if current_user.role not in [UserRole.ADMIN, UserRole.MANAGER] and not current_user.is_superuser:
+    if (
+        current_user.role not in [UserRole.ADMIN, UserRole.MANAGER]
+        and not current_user.is_superuser
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="The user doesn't have enough privileges"
+            detail="The user doesn't have enough privileges",
         )
     return current_user
+
 
 def get_current_non_viewer(
     current_user: User = Depends(get_current_user),
@@ -135,23 +141,26 @@ def get_current_non_viewer(
     if current_user.role == UserRole.VIEWER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Viewers cannot create or modify records"
+            detail="Viewers cannot create or modify records",
         )
     return current_user
 
-async def _get_effective_subscription(db: AsyncSession, user: User) -> Subscription | None:
+
+async def _get_effective_subscription(
+    db: AsyncSession, user: User
+) -> Subscription | None:
     """
     Looks up an active subscription for the user directly, or via Farm membership
     if they are a Manager/Viewer on a Farm owned by a subscriber.
     """
-    from app.db.models.farm_member import FarmMember
     from app.db.models.farm import Farm
+    from app.db.models.farm_member import FarmMember
 
     # 1. Direct Ownership Lookup (e.g. Farmer)
     result = await db.execute(
         select(Subscription).filter(
             Subscription.user_id == user.id,
-            Subscription.status == SubscriptionStatus.ACTIVE
+            Subscription.status == SubscriptionStatus.ACTIVE,
         )
     )
     sub = result.scalars().first()
@@ -164,22 +173,24 @@ async def _get_effective_subscription(db: AsyncSession, user: User) -> Subscript
     )
     membership = member_result.scalars().first()
     if membership:
-        farm_result = await db.execute(select(Farm).where(Farm.id == membership.farm_id))
+        farm_result = await db.execute(
+            select(Farm).where(Farm.id == membership.farm_id)
+        )
         farm = farm_result.scalar_one_or_none()
         if farm:
             owner_sub_result = await db.execute(
                 select(Subscription).filter(
                     Subscription.user_id == farm.owner_id,
-                    Subscription.status == SubscriptionStatus.ACTIVE
+                    Subscription.status == SubscriptionStatus.ACTIVE,
                 )
             )
             return owner_sub_result.scalars().first()
 
     return None
 
+
 async def check_professional_subscription(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> bool:
     """
     Dependency to verify user has an active Professional or Enterprise plan.
@@ -191,18 +202,18 @@ async def check_professional_subscription(
         return True
 
     sub = await _get_effective_subscription(db, current_user)
-    
+
     if not sub or sub.plan_type == PlanType.STARTER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="This feature requires a Professional Plan subscription on the Farm Account."
+            detail="This feature requires a Professional Plan subscription on the Farm Account.",
         )
-        
+
     return True
 
+
 async def check_enterprise_subscription(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> bool:
     """
     Dependency to verify user has an active Enterprise plan.
@@ -214,13 +225,13 @@ async def check_enterprise_subscription(
         return True
 
     sub = await _get_effective_subscription(db, current_user)
-    
+
     if not sub or sub.plan_type != PlanType.ENTERPRISE:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="This feature requires an Enterprise Plan subscription on the Farm Account."
+            detail="This feature requires an Enterprise Plan subscription on the Farm Account.",
         )
-        
+
     return True
 
 
@@ -246,7 +257,8 @@ async def get_plan_type(
             if plan == PlanType.STARTER:
                 raise HTTPException(403, detail="Requires Professional Plan")
     """
-    from app.db.models.subscription import Subscription, SubscriptionStatus, PlanType
+    from app.db.models.subscription import (PlanType, Subscription,
+                                            SubscriptionStatus)
 
     if current_user.role == UserRole.ADMIN or current_user.is_superuser:
         return PlanType.ENTERPRISE

@@ -1,16 +1,18 @@
 import logging
+
 import structlog
 from structlog.stdlib import BoundLogger
 
+
 def setup_logging():
     """Configure structlog with proper uvicorn integration."""
-    
+
     # Configure standard library logging first
     logging.basicConfig(
         format="%(message)s",
         level=logging.INFO,
     )
-    
+
     # Configure structlog
     structlog.configure(
         processors=[
@@ -29,12 +31,12 @@ def setup_logging():
         wrapper_class=structlog.stdlib.BoundLogger,
         cache_logger_on_first_use=True,
     )
-    
+
     # Configure formatters for different handlers
     formatter = structlog.stdlib.ProcessorFormatter(
         processor=structlog.dev.ConsoleRenderer(),
     )
-    
+
     # Update handlers
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)

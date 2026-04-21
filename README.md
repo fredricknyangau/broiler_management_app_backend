@@ -38,8 +38,8 @@ This starts the Database, Redis, API, and Celery workers.
 docker compose up -d --build
 ```
 
-- API: http://localhost:8000
-- Docs: http://localhost:8000/docs
+- API: http://localhost:8080
+- Docs: http://localhost:8080/docs
 
 ### 3. Run Manually (Alternative)
 
@@ -110,7 +110,7 @@ docker build -t broiler-backend .
 
 # Run container (Example)
 docker run -d \
-  -p 8000:8000 \
+  -p 8080:8080 \
   -e DEBUG=False \
   -e SECRET_KEY=<your-secure-key> \
   -e DATABASE_URL=<prod-db-url> \
