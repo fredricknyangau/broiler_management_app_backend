@@ -37,10 +37,20 @@ class Expenditure(Base, UUIDMixin, TimestampMixin):
     receipt_image = Column(String(255), nullable=True, doc="URL/path to receipt image")
     mpesa_transaction_id = Column(String(50), nullable=True)
     checkout_request_id = Column(String(50), nullable=True)
-    
+
     # Auto-linking fields
-    related_id = Column(UUID(as_uuid=True), nullable=True, index=True, doc="ID of the source event (e.g. FeedEvent ID)")
-    related_type = Column(String(50), nullable=True, index=True, doc="Type of source event: feed, vaccination, flock_placement")
+    related_id = Column(
+        UUID(as_uuid=True),
+        nullable=True,
+        index=True,
+        doc="ID of the source event (e.g. FeedEvent ID)",
+    )
+    related_type = Column(
+        String(50),
+        nullable=True,
+        index=True,
+        doc="Type of source event: feed, vaccination, flock_placement",
+    )
 
     # Relationships
     flock = relationship("Flock", backref="expenditures")

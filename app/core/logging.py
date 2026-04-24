@@ -1,7 +1,6 @@
 import logging
 
 import structlog
-from structlog.stdlib import BoundLogger
 
 
 def setup_logging():

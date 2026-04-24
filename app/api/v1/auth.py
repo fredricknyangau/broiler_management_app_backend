@@ -7,8 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import (get_current_user, get_db, set_rls_bypass,
-                          set_tenant_context)
+from app.api.deps import (get_current_user, get_db, set_rls_bypass)
 from app.config import settings
 from app.core.security import create_access_token
 from app.db.models.user import User

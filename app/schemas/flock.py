@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Optional
 
-from pydantic import UUID4, BaseModel, Field
+from pydantic import UUID4, BaseModel, ConfigDict, Field
 
 
 class FlockBase(BaseModel):
@@ -52,5 +52,4 @@ class FlockResponse(FlockBase):
     id: UUID4
     farmer_id: UUID4
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

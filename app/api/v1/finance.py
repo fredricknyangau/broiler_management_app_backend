@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import (check_professional_subscription,
                           get_current_non_viewer, get_current_user, get_db,
-                          get_plan_type, set_tenant_context)
+                          get_plan_type)
 from app.db.models.finance import Expenditure, Sale
 from app.db.models.inventory import InventoryItem
 from app.db.models.subscription import PlanType

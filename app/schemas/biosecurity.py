@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Any, Dict, List, Optional
 
-from pydantic import UUID4, BaseModel, Field, Json
+from pydantic import UUID4, BaseModel, ConfigDict
 
 
 class BiosecurityCheckBase(BaseModel):
@@ -34,5 +34,4 @@ class BiosecurityCheckResponse(BiosecurityCheckBase):
     id: UUID4
     farmer_id: UUID4
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

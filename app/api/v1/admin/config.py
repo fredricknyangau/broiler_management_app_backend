@@ -1,8 +1,8 @@
 """admin/config.py — System configuration and audit log endpoints."""
 
-from typing import Any, Generic, List, Optional, TypeVar
+from typing import Generic, List, Optional, TypeVar
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,8 +13,7 @@ from app.db.models.audit import AuditLog
 from app.db.models.config import SystemConfig
 from app.db.models.user import User
 from app.schemas.audit import AuditLogResponse
-from app.schemas.config import (SystemConfigCreate, SystemConfigResponse,
-                                SystemConfigUpdate)
+from app.schemas.config import (SystemConfigCreate, SystemConfigResponse)
 from app.services.audit_service import log_action
 
 router = APIRouter()

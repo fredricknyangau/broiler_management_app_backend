@@ -9,8 +9,7 @@ from app.api.deps import get_current_user, get_db, set_tenant_context
 from app.db.models.daily_check import DailyCheck
 from app.db.models.flock import Flock
 from app.db.models.user import User
-from app.schemas.daily_check import (DailyCheckCreate, DailyCheckResponse,
-                                     EventType)
+from app.schemas.daily_check import (DailyCheckCreate, DailyCheckResponse)
 from app.services.daily_check_service import DailyCheckService
 from app.workers.tasks import evaluate_alerts_task
 

@@ -5,8 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import (get_current_non_viewer, get_current_user, get_db,
-                          set_tenant_context)
+from app.api.deps import (get_current_non_viewer, get_current_user, get_db)
 from app.db.models.biosecurity import BiosecurityCheck
 from app.db.models.user import User
 from app.schemas.biosecurity import (BiosecurityCheckCreate,

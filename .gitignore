@@ -12,10 +12,13 @@ venv/
 env/
 .venv/
 
-# Environment Variables
+# Environment Variables — NEVER commit these
 .env
-.env.*
-.env.production.example
+.env.local
+.env.*.local
+!.env.example
+.env.production
+.env.staging
 
 # IDEs
 .vscode/

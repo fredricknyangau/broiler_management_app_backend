@@ -38,7 +38,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: broiler_api
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+    command: ./start.sh
     ports:
       - "8080:8080"
     env_file:
@@ -53,6 +53,8 @@ services:
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini
       - ./scripts:/app/scripts
+      - ./tests:/app/tests
+      - ./pyproject.toml:/app/pyproject.toml
     depends_on:
       postgres:
         condition: service_healthy

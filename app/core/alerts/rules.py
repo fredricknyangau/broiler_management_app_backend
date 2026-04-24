@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date
 from typing import Any, Dict, Optional
 
 from app.core.alerts.base import AlertResult, AlertRule, AlertSeverity

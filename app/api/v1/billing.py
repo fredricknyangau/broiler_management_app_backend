@@ -28,7 +28,7 @@ async def get_plans(db: AsyncSession = Depends(get_db)) -> list[PlanResponse]:
     """
     result = await db.execute(
         select(SubscriptionPlan)
-        .filter(SubscriptionPlan.is_active == True)
+        .filter(SubscriptionPlan.is_active.is_(True))
         .order_by(SubscriptionPlan.monthly_price.asc())
     )
     return result.scalars().all()
@@ -162,8 +162,6 @@ async def mpesa_callback(request: Request, db: AsyncSession = Depends(get_db)):
     transaction status directly with Safaricom before mutating any data.
     This prevents fake callback attacks.
     """
-    import structlog
-
     _log = structlog.get_logger(__name__)
 
     data = await request.json()

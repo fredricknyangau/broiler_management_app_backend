@@ -41,7 +41,38 @@ pylint = "^3.0.3"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pylint.messages_control]
+disable = [
+    "missing-docstring",
+    "too-few-public-methods",
+    "too-many-arguments",
+    "too-many-positional-arguments",
+    "too-many-locals",
+    "redefined-outer-name",
+    "unused-argument",
+    "broad-exception-caught",
+    "raise-missing-from",
+    "no-member",
+    "not-callable",
+    "import-outside-toplevel",
+    "logging-fstring-interpolation",
+    "duplicate-code",
+    "invalid-name",
+    "unused-import",
+    "wrong-import-order",
+    "wrong-import-position",
+    "ungrouped-imports",
+    "line-too-long",
+    "unnecessary-pass",
+    "too-many-branches",
+    "too-many-statements",
+    "protected-access",
+    "no-else-return"
+]

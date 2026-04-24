@@ -1,4 +1,3 @@
-from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -24,7 +23,7 @@ async def get_alerts(
         query = select(Alert)
     else:
         query = select(Alert).filter(
-            or_(Alert.user_id == current_user.id, Alert.user_id == None)
+            or_(Alert.user_id == current_user.id, Alert.user_id.is_(None))
         )
 
     result = await db.execute(query.order_by(Alert.triggered_at.desc()))
@@ -73,8 +72,6 @@ async def broadcast_alert(
     if current_admin.role != "ADMIN":
         raise HTTPException(status_code=403, detail="Only Admins can broadcast alerts")
 
-    from app.db.models.alert import \
-        Alert as AlertModel  # fix circular reference if any
 
     alert = Alert(
         title=payload.title,

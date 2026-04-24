@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from pydantic import UUID4, BaseModel, Field, Json
+from pydantic import UUID4, BaseModel, ConfigDict
 
 
 class AlertBase(BaseModel):
@@ -38,5 +38,4 @@ class AlertResponse(AlertBase):
     acknowledged_at: Optional[datetime]
     resolved_at: Optional[datetime]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

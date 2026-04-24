@@ -28,7 +28,8 @@ async def test_send_otp(mock_send_otp):
     # Assertions
     assert response.status_code == 200
     assert response.json()["message"] == "OTP sent successfully"
-    assert response.json()["code"] == "1234"
+    # debug_code is returned when settings.DEBUG is True (default in test)
+    assert response.json()["debug_code"] == "1234"
     mock_send_otp.assert_called_once_with("+254712345678")
 
 

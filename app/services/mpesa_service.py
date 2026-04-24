@@ -93,7 +93,7 @@ class MpesaService:
         except httpx.HTTPStatusError as e:
             error_body = e.response.text
             logger.error("STK Push rejected", extra={"body": error_body})
-            raise Exception(f"M-Pesa API Error: {error_body}") from e
+            raise RuntimeError(f"M-Pesa API Error: {error_body}") from e
         except Exception as e:
             logger.error("STK Push failed unexpectedly: %s", e)
             raise
@@ -146,7 +146,7 @@ class MpesaService:
         except httpx.HTTPStatusError as e:
             error_body = e.response.text
             logger.error("STK Query failed", extra={"body": error_body})
-            raise Exception(f"M-Pesa Query Error: {error_body}") from e
+            raise RuntimeError(f"M-Pesa Query Error: {error_body}") from e
         except Exception as e:
             logger.error("STK Query failed unexpectedly: %s", e)
             raise

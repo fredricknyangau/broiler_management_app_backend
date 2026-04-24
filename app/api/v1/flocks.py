@@ -1,12 +1,11 @@
-from typing import List, Optional
+from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import (get_current_non_viewer, get_current_user, get_db,
-                          set_tenant_context)
+from app.api.deps import (get_current_non_viewer, get_current_user, get_db)
 from app.db.models.flock import Flock
 from app.db.models.subscription import (PlanType, Subscription,
                                         SubscriptionStatus)

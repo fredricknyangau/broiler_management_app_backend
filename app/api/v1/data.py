@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import List
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -79,7 +79,6 @@ async def sync_data(
     Fetch all user data in a single request.
     Optimized for initial load and sync.
     """
-    from sqlalchemy import select
 
     # 1. Flocks
     result = await db.execute(select(Flock).filter(Flock.farmer_id == current_user.id))

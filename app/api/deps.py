@@ -257,8 +257,7 @@ async def get_plan_type(
             if plan == PlanType.STARTER:
                 raise HTTPException(403, detail="Requires Professional Plan")
     """
-    from app.db.models.subscription import (PlanType, Subscription,
-                                            SubscriptionStatus)
+    # PlanType, Subscription, SubscriptionStatus are already imported at the top
 
     if current_user.role == UserRole.ADMIN or current_user.is_superuser:
         return PlanType.ENTERPRISE

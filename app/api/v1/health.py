@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, get_db, set_tenant_context
+from app.api.deps import get_current_user, get_db
 from app.db.models.health import VetConsultation
 from app.db.models.user import User
 from app.schemas.health import VetConsultationCreate, VetConsultationResponse

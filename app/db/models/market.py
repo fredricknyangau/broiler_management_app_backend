@@ -1,4 +1,4 @@
-from sqlalchemy import DECIMAL, CheckConstraint, Column, Date, Integer, String
+from sqlalchemy import DECIMAL, CheckConstraint, Column, Date, String
 
 from app.db.base import Base, TimestampMixin, UUIDMixin
 

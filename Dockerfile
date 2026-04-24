@@ -18,7 +18,7 @@ RUN pip install poetry
 # Copy and install dependencies
 COPY pyproject.toml poetry.lock ./
 RUN poetry config virtualenvs.create false \
-    && poetry install --no-root --only main --no-interaction --no-ansi
+    && poetry install --no-root --with dev --no-interaction --no-ansi
 
 # Stage 2: Runtime
 FROM python:3.12-slim

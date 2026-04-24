@@ -48,7 +48,9 @@ class OTPService:
         """Helper to call synchronous Africa's Talking API without blocking the event loop."""
         if not self.sms:
             if settings.DEBUG:
-                logger.info(f"[DEBUG MODE] Skipping SMS delivery for {phone_number}. Use the code from logs.")
+                logger.info(
+                    f"[DEBUG MODE] Skipping SMS delivery for {phone_number}. Use the code from logs."
+                )
                 return
             error_message = (
                 "Cannot send SMS: Africa's Talking SMS client not initialized. "

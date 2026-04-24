@@ -2,7 +2,7 @@ from datetime import date, time
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import UUID4, BaseModel, Field
+from pydantic import UUID4, BaseModel, ConfigDict, Field
 
 
 class ChickBehavior(str, Enum):
@@ -59,8 +59,7 @@ class MortalityEventResponse(MortalityEventCreate):
     flock_id: UUID4
     event_date: date
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MortalityEventUpdate(BaseModel):
@@ -99,8 +98,7 @@ class FeedConsumptionEventResponse(FeedConsumptionEventCreate):
     flock_id: UUID4
     event_date: date
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class VaccinationEventCreate(BaseModel):
@@ -141,8 +139,7 @@ class VaccinationEventResponse(VaccinationEventCreate):
     flock_id: UUID4
     event_date: date
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class WeightMeasurementEventCreate(BaseModel):
@@ -171,8 +168,7 @@ class WeightMeasurementEventResponse(WeightMeasurementEventCreate):
     flock_id: UUID4
     event_date: date
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Union type for events
@@ -211,8 +207,8 @@ class DailyCheckCreate(BaseModel):
     # Events that occurred today
     events: List[EventData] = Field(default_factory=list)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "flock_id": "550e8400-e29b-41d4-a716-446655440000",
                 "check_date": "2025-12-06",
@@ -236,6 +232,7 @@ class DailyCheckCreate(BaseModel):
                 ],
             }
         }
+    )
 
 
 class DailyCheckResponse(BaseModel):
@@ -247,5 +244,4 @@ class DailyCheckResponse(BaseModel):
     events_processed: int
     alerts_triggered: List[dict]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

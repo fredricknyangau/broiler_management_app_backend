@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class SubscriptionCreate(BaseModel):
@@ -27,8 +27,7 @@ class SubscriptionResponse(BaseModel):
     billing_period: str | None
     checkout_request_id: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PlanResponse(BaseModel):
@@ -58,8 +57,7 @@ class PlanResponse(BaseModel):
     def parse_show_discount(cls, v):
         return True if v is None else v
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PlanCreate(BaseModel):

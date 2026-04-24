@@ -3,12 +3,9 @@ from typing import Any, Dict, List
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.daily_check import DailyCheck
-from app.db.models.events import (FeedConsumptionEvent, MortalityEvent,
-                                  VaccinationEvent, WeightMeasurementEvent)
 from app.services.feed_service import FeedConsumptionService
 from app.services.mortality_service import MortalityEventService
 from app.services.vaccination_service import VaccinationService

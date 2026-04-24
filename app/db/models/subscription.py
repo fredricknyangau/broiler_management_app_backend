@@ -1,6 +1,6 @@
 import enum
 
-from sqlalchemy import (DECIMAL, Boolean, Column, DateTime, Enum, ForeignKey,
+from sqlalchemy import (DECIMAL, Boolean, Column, DateTime, ForeignKey,
                         String)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
@@ -33,7 +33,9 @@ class Subscription(Base, UUIDMixin, TimestampMixin):
     plan_type = Column(
         String, nullable=False, default=PlanType.STARTER
     )  # Stored as string for flexibility
-    status = Column(String, nullable=False, default=SubscriptionStatus.PENDING, index=True)
+    status = Column(
+        String, nullable=False, default=SubscriptionStatus.PENDING, index=True
+    )
     start_date = Column(DateTime, nullable=True)
     end_date = Column(DateTime, nullable=True)
     amount = Column(DECIMAL(10, 2), nullable=True, doc="Amount in KES")

@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Dict, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class RoleBase(BaseModel):
@@ -27,5 +27,4 @@ class RoleResponse(RoleBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

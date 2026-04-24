@@ -58,8 +58,8 @@ def test_database_url_validation():
     original_db = os.getenv('DATABASE_URL')
 
     try:
-        # Clear DATABASE_URL
-        os.environ.pop('DATABASE_URL', None)
+        # Set to empty string to trigger validator (it has a default, so pop doesn't work)
+        os.environ['DATABASE_URL'] = ''
 
         # Should raise ValidationError
         with pytest.raises(ValidationError) as exc_info:
@@ -72,6 +72,8 @@ def test_database_url_validation():
     finally:
         if original_db:
             os.environ['DATABASE_URL'] = original_db
+        else:
+            os.environ.pop('DATABASE_URL', None)
 
 
 def test_valid_config():

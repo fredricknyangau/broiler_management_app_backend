@@ -18,7 +18,7 @@ COPY pyproject.toml poetry.lock ./
 
 # Install Python dependencies
 RUN poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi --no-root
+    && poetry install --no-interaction --no-ansi --no-root --with dev
 
 # Copy application code
 COPY . .
@@ -32,4 +32,3 @@ EXPOSE 8080
 
 # Default command (overridden in docker-compose)
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
-

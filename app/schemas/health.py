@@ -1,7 +1,7 @@
 from datetime import date
 from typing import List, Optional
 
-from pydantic import UUID4, BaseModel, Field
+from pydantic import UUID4, BaseModel, ConfigDict, Field
 
 
 class VetConsultationBase(BaseModel):
@@ -26,5 +26,4 @@ class VetConsultationResponse(VetConsultationBase):
     farmer_id: UUID4
     flock_id: Optional[UUID4]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

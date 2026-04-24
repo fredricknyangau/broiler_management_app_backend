@@ -1,10 +1,8 @@
 """admin/users.py — User management endpoints (list, update, delete)."""
 
-from datetime import datetime
 from typing import Any, Generic, List, Optional, TypeVar
-from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession

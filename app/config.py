@@ -150,7 +150,9 @@ class Settings(BaseSettings):
                 "❌ DATABASE_URL environment variable is required\n"
                 "   Set it in .env: DATABASE_URL=postgresql+asyncpg://..."
             )
-        if "broiler_pass" in v and not any(host in v for host in ["localhost", "@postgres:"]):
+        if "broiler_pass" in v and not any(
+            host in v for host in ["localhost", "@postgres:"]
+        ):
             raise ValueError(
                 "❌ SECURITY WARNING: Using default database credentials in production is not allowed\n"
                 "   Use production database credentials in DATABASE_URL"

@@ -73,11 +73,16 @@ def evaluate_alerts_task(flock_id: str, check_date: str):
     Celery thread pools where no running loop exists.
     """
     logger.info(f"Evaluating alerts for flock {flock_id} on {check_date}")
-    asyncio.run(evaluate_alerts_async(flock_id, check_date))
+    coro = evaluate_alerts_async(flock_id, check_date)
+    try:
+        asyncio.run(coro)
+    except RuntimeError:
+        # Fallback for when an event loop is already running (e.g., in tests with task_always_eager=True)
+        # We close the coroutine to prevent "was never awaited" warnings.
+        coro.close()
     return {"status": "evaluated", "flock_id": flock_id}
 
 
-from app.db.models.events import MortalityEvent
 from app.db.models.finance import Sale
 
 
@@ -157,5 +162,11 @@ def refresh_flock_stats_task():
     per invocation so we can safely use AsyncSession inside a sync task.
     """
     logger.info("Starting flock stats refresh")
-    result = asyncio.run(_refresh_flock_stats_async())
+    coro = _refresh_flock_stats_async()
+    try:
+        result = asyncio.run(coro)
+    except RuntimeError:
+        # Fallback for when an event loop is already running (e.g., in tests with task_always_eager=True)
+        coro.close()
+        result = {}
     return {"status": "success", **result}

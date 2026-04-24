@@ -2,12 +2,12 @@ import csv
 import io
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from app.api.deps import get_current_admin_user, get_db, set_tenant_context
+from app.api.deps import get_current_admin_user, get_db
 from app.db.models.audit import AuditLog
 from app.db.models.user import User
 from app.schemas.audit import AuditLogResponse

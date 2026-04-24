@@ -1,5 +1,5 @@
 from sqlalchemy import (DECIMAL, CheckConstraint, Column, Date, ForeignKey,
-                        Integer, String, Text)
+                        String, Text)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 

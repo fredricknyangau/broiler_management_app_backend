@@ -34,14 +34,14 @@ db-shell:
 	docker compose exec postgres psql -U broiler_user -d broiler_farm_db
 
 migrate:
-	docker compose exec api alembic upgrade head
+	docker compose exec -T api alembic upgrade head
 
 test:
-	docker compose exec api pytest
+	docker compose exec -T api pytest
 
 lint:
-	docker compose exec api pylint app
+	docker compose exec -T api pylint app
 
 format:
-	docker compose exec api black app
-	docker compose exec api isort app
+	docker compose exec -T api black app
+	docker compose exec -T api isort app

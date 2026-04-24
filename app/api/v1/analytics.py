@@ -1,18 +1,13 @@
 import csv
 import io
-from datetime import date, timedelta
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import (get_current_user, get_db, get_plan_type,
-                          set_tenant_context)
-from app.db.models.biosecurity import BiosecurityCheck
-from app.db.models.events import (FeedConsumptionEvent, MortalityEvent,
-                                  WeightMeasurementEvent)
+from app.api.deps import (get_current_user, get_db, get_plan_type)
 from app.db.models.finance import Expenditure, Sale
 from app.db.models.flock import Flock
 from app.db.models.inventory import InventoryItem
@@ -76,8 +71,8 @@ async def get_revenue_expenses_chart(
 
 @router.get("/reports/export")
 async def export_report(
-    report_type: str = Query(..., regex="^(financial|inventory|production)$"),
-    format: str = Query("csv", regex="^csv$"),
+    report_type: str = Query(..., pattern="^(financial|inventory|production)$"),
+    file_format: str = Query("csv", pattern="^csv$"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     current_plan: str = Depends(get_plan_type),

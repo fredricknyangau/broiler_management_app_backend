@@ -1,13 +1,12 @@
 from datetime import date
-from typing import List, Optional
+from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import (get_current_non_viewer, get_current_user, get_db,
-                          set_tenant_context)
+from app.api.deps import (get_current_non_viewer, get_current_user, get_db)
 from app.db.models.events import (FeedConsumptionEvent, MortalityEvent,
                                   VaccinationEvent, WeightMeasurementEvent)
 from app.db.models.flock import Flock
@@ -76,7 +75,7 @@ async def create_mortality_event(
         id=event_in.event_id,
         event_id=event_in.event_id,
         flock_id=flock_id,
-        event_date=event_date
+        event_date=event_date,
     )
     db.add(event)
     await db.commit()
@@ -189,10 +188,10 @@ async def create_feed_event(
         id=event_in.event_id,
         event_id=event_in.event_id,
         flock_id=flock_id,
-        event_date=event_date
+        event_date=event_date,
     )
     db.add(event)
-    
+
     # Sync Expenditure
     if event.cost_ksh and event.cost_ksh > 0:
         finance_service = FinanceService(db)
@@ -335,10 +334,10 @@ async def create_vaccination_event(
         id=event_in.event_id,
         event_id=event_in.event_id,
         flock_id=flock_id,
-        event_date=event_date
+        event_date=event_date,
     )
     db.add(event)
-    
+
     # Sync Expenditure
     if event.cost_ksh and event.cost_ksh > 0:
         finance_service = FinanceService(db)
@@ -482,7 +481,7 @@ async def create_weight_event(
         id=event_in.event_id,
         event_id=event_in.event_id,
         flock_id=flock_id,
-        event_date=event_date
+        event_date=event_date,
     )
     db.add(event)
     await db.commit()

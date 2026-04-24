@@ -45,7 +45,9 @@ class Flock(Base, UUIDMixin, TimestampMixin):
     )
 
     # Dates & Counts
-    start_date = Column(Date, nullable=False, index=True, doc="Date when chicks were placed")
+    start_date = Column(
+        Date, nullable=False, index=True, doc="Date when chicks were placed"
+    )
     initial_count = Column(
         Integer, nullable=False, doc="Number of chicks originally placed"
     )

@@ -2,7 +2,7 @@ import datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import UUID4, BaseModel, Field, validator
+from pydantic import UUID4, BaseModel, ConfigDict, Field
 
 
 class ExpenditureBase(BaseModel):
@@ -57,8 +57,7 @@ class ExpenditureResponse(ExpenditureBase):
     inventory_item_id: Optional[UUID4]
     supplier_id: Optional[UUID4]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SaleBase(BaseModel):
@@ -103,5 +102,4 @@ class SaleResponse(SaleBase):
     flock_id: UUID4
     farmer_id: UUID4
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

@@ -1,8 +1,8 @@
-from datetime import date
+import datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import UUID4, BaseModel, Field
+from pydantic import UUID4, BaseModel, ConfigDict, Field
 
 
 class InventoryItemBase(BaseModel):
@@ -14,7 +14,7 @@ class InventoryItemBase(BaseModel):
     unit: str = Field(..., max_length=20)
     minimum_stock: Decimal = Field(0, ge=0)
     cost_per_unit: Decimal = Field(0, ge=0)
-    last_restocked: Optional[date] = None
+    last_restocked: Optional[datetime.date] = None
     notes: Optional[str] = None
 
 
@@ -33,7 +33,7 @@ class InventoryItemUpdate(BaseModel):
     unit: Optional[str] = Field(None, max_length=20)
     minimum_stock: Optional[Decimal] = Field(None, ge=0)
     cost_per_unit: Optional[Decimal] = Field(None, ge=0)
-    last_restocked: Optional[date] = None
+    last_restocked: Optional[datetime.date] = None
     notes: Optional[str] = None
 
 
@@ -43,8 +43,7 @@ class InventoryItemResponse(InventoryItemBase):
     id: UUID4
     farmer_id: UUID4
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class InventoryHistoryResponse(BaseModel):
@@ -53,11 +52,10 @@ class InventoryHistoryResponse(BaseModel):
     id: UUID4
     inventory_item_id: UUID4
     user_id: UUID4
-    date: date
+    date: datetime.date
     action: str
     quantity_change: Decimal
     notes: Optional[str] = None
-    created_at: date
+    created_at: datetime.date
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

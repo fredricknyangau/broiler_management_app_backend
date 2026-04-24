@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 import redis.asyncio as redis
@@ -47,7 +48,17 @@ if settings.SENTRY_ENABLED and settings.SENTRY_DSN and sentry_sdk:
         environment="production" if not settings.DEBUG else "development",
     )
     logger = structlog.get_logger()
-    logger.info("sentry_initialized", dsn_prefix=settings.SENTRY_DSN[:30])
+    logger.info("sentry_initialized", dsn_prefix=str(settings.SENTRY_DSN)[:30])
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    logger = structlog.get_logger()
+    logger.info("application_started", environment="production")
+    yield
+    # Shutdown logic (if any)
+
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -56,6 +67,7 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
     docs_url=f"{settings.API_V1_PREFIX}/docs",
     redoc_url=f"{settings.API_V1_PREFIX}/redoc",
+    lifespan=lifespan,
     openapi_tags=[
         {
             "name": "Authentication",
@@ -81,12 +93,6 @@ app = FastAPI(
         {"name": "Health", "description": "Health check endpoints"},
     ],
 )
-
-
-@app.on_event("startup")
-async def startup_event():
-    logger = structlog.get_logger()
-    logger.info("application_started", environment="production")
 
 
 # Set all CORS enabled origins
@@ -238,7 +244,8 @@ async def health_check():
 
     overall_status = (
         "healthy"
-        if database_status == "connected" and redis_status == "connected"
+        if database_status == "connected"
+        and (redis_status == "connected" or not settings.REDIS_URL)
         else "degraded"
     )
     return {

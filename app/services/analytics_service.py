@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Any, Dict, List
 from uuid import UUID
 
@@ -262,12 +262,12 @@ class AnalyticsService:
         )
 
         mort_res = await self.db.execute(mortality_stmt)
-        total_mortality, total_initial = mort_res.first() or (0, 0)
+        row = mort_res.first()
+        total_mortality = row[0] or 0 if row else 0
+        total_initial = row[1] or 0 if row else 0
 
         mortality_avg = (
-            (total_mortality / total_initial * 100)
-            if total_initial and total_initial > 0
-            else 0
+            (total_mortality / total_initial * 100) if total_initial > 0 else 0
         )
 
         # Placeholder for FCR Benchmarking in this region

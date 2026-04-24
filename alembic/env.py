@@ -27,6 +27,16 @@ from app.db.models.people import Employee, Supplier, Customer
 from app.db.models.inventory import InventoryItem
 from app.db.models.finance import Expenditure, Sale
 from app.db.models.inventory_history import InventoryHistory
+from app.db.models.community import CommunityCategory, CommunityPost, CommunityComment, CommunityLike
+from app.db.models.api_key import ApiKey
+from app.db.models.audit import AuditLog
+from app.db.models.biosecurity import BiosecurityCheck
+from app.db.models.config import SystemConfig
+from app.db.models.farm import Farm
+from app.db.models.farm_member import FarmMember
+from app.db.models.resource import Resource
+from app.db.models.scheduled_task import ScheduledTask
+from app.db.models.user_setting import UserSetting
 
 config = context.config
 

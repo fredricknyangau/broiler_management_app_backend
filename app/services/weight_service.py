@@ -2,7 +2,7 @@ from datetime import date
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.events import WeightMeasurementEvent
@@ -22,7 +22,7 @@ class WeightMeasurementService(BaseEventService[WeightMeasurementEvent]):
         result = await self.db.execute(
             select(WeightMeasurementEvent)
             .filter(WeightMeasurementEvent.flock_id == flock_id)
-            .order_by(WeightMeasurementEvent.measurement_date.desc())
+            .order_by(WeightMeasurementEvent.event_date.desc())
         )
         return result.scalars().first()
 
@@ -31,13 +31,13 @@ class WeightMeasurementService(BaseEventService[WeightMeasurementEvent]):
         result = await self.db.execute(
             select(WeightMeasurementEvent)
             .filter(WeightMeasurementEvent.flock_id == flock_id)
-            .order_by(WeightMeasurementEvent.measurement_date)
+            .order_by(WeightMeasurementEvent.event_date)
         )
         measurements = result.scalars().all()
 
         return [
             {
-                "date": m.measurement_date,
+                "date": m.event_date,
                 "average_weight_grams": float(m.average_weight_grams),
                 "sample_size": m.sample_size,
             }
@@ -52,9 +52,9 @@ class WeightMeasurementService(BaseEventService[WeightMeasurementEvent]):
             select(WeightMeasurementEvent)
             .filter(
                 WeightMeasurementEvent.flock_id == flock_id,
-                WeightMeasurementEvent.measurement_date >= start_date,
+                WeightMeasurementEvent.event_date >= start_date,
             )
-            .order_by(WeightMeasurementEvent.measurement_date)
+            .order_by(WeightMeasurementEvent.event_date)
         )
 
         result_start = await self.db.execute(stmt_start)
@@ -64,9 +64,9 @@ class WeightMeasurementService(BaseEventService[WeightMeasurementEvent]):
             select(WeightMeasurementEvent)
             .filter(
                 WeightMeasurementEvent.flock_id == flock_id,
-                WeightMeasurementEvent.measurement_date <= end_date,
+                WeightMeasurementEvent.event_date <= end_date,
             )
-            .order_by(WeightMeasurementEvent.measurement_date.desc())
+            .order_by(WeightMeasurementEvent.event_date.desc())
         )
 
         result_end = await self.db.execute(stmt_end)
@@ -80,7 +80,7 @@ class WeightMeasurementService(BaseEventService[WeightMeasurementEvent]):
             - start_measurement.average_weight_grams
         )
         days_diff = (
-            end_measurement.measurement_date - start_measurement.measurement_date
+            end_measurement.event_date - start_measurement.event_date
         ).days
 
         if days_diff <= 0:

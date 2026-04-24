@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import UUID4, BaseModel, Field
+from pydantic import UUID4, BaseModel, ConfigDict, Field
 
 
 class MarketPriceBase(BaseModel):
@@ -22,5 +22,4 @@ class MarketPriceCreate(MarketPriceBase):
 class MarketPriceResponse(MarketPriceBase):
     id: UUID4
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

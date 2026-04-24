@@ -266,11 +266,7 @@ Stats:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-from fastapi import File, UploadFile
 
-from app.schemas.ai import (HarvestOptimizationRequest,
-                            HarvestOptimizationResponse,
-                            VoiceObservationResponse)
 
 # ... imports continued
 

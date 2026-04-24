@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -6,8 +6,6 @@ from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.alert import Alert
-from app.db.models.events import MortalityEvent
-from app.db.models.flock import Flock
 from app.services.email_service import EmailService
 
 

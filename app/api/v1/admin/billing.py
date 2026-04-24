@@ -1,7 +1,7 @@
 """admin/billing.py — Subscription and plan management endpoints."""
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Generic, List, Optional, TypeVar
+from typing import Generic, List, Optional, TypeVar
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.api.deps import get_current_admin_user, get_db
-from app.db.models.subscription import (PlanType, Subscription,
+from app.db.models.subscription import (Subscription,
                                         SubscriptionPlan, SubscriptionStatus)
 from app.db.models.user import User
 from app.schemas.billing import (PlanCreate, PlanResponse, PlanUpdate,

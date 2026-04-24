@@ -46,7 +46,7 @@ async def get_system_stats(
     """Get system-wide statistics including billing."""
     total_users = await db.execute(select(func.count(User.id)))
     active_users = await db.execute(
-        select(func.count(User.id)).filter(User.is_active == True)
+        select(func.count(User.id)).filter(User.is_active.is_(True))
     )
 
     total_flocks = await db.execute(select(func.count(Flock.id)))
@@ -68,14 +68,14 @@ async def get_system_stats(
     for p in plans_res.scalars().all():
         try:
             price_map[p.plan_type] = float(p.monthly_price)
-        except:
+        except Exception:
             price_map[p.plan_type] = 0.0
 
     for sub in active_subs:
         try:
             if getattr(sub, "amount", None):
                 revenue += float(sub.amount)
-        except:
+        except Exception:
             pass
         plan = str(sub.plan_type).upper()
         users_by_plan[plan] = users_by_plan.get(plan, 0) + 1

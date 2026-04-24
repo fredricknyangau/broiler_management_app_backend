@@ -2,15 +2,16 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import desc, func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user, get_db
 from app.db.models.community import (CommunityCategory, CommunityComment,
                                      CommunityLike, CommunityPost)
 from app.db.models.user import User
 from app.schemas.community import (CategoryResponse, CommentBase,
-                                   CommentCreate, CommentResponse, PostCreate,
+                                   CommentResponse, PostCreate,
                                    PostResponse)
 
 router = APIRouter()
@@ -83,8 +84,12 @@ async def read_feed(
     current_user: User = Depends(get_current_user),
 ):
     """Global community feed with search and categorization."""
-    stmt = select(CommunityPost).order_by(
-        CommunityPost.is_pinned.desc(), CommunityPost.created_at.desc()
+    stmt = (
+        select(CommunityPost)
+        .options(
+            selectinload(CommunityPost.author), selectinload(CommunityPost.category)
+        )
+        .order_by(CommunityPost.is_pinned.desc(), CommunityPost.created_at.desc())
     )
 
     if category_id:
@@ -118,8 +123,16 @@ async def create_post(
     post = CommunityPost(**post_in.model_dump(), author_id=current_user.id)
     db.add(post)
     await db.commit()
-    await db.refresh(post)
-    return post
+
+    # Fetch with relationships for the response model
+    result = await db.execute(
+        select(CommunityPost)
+        .options(
+            selectinload(CommunityPost.author), selectinload(CommunityPost.category)
+        )
+        .filter(CommunityPost.id == post.id)
+    )
+    return result.scalars().first()
 
 
 @router.get("/posts/{post_id}", response_model=PostResponse)
@@ -129,7 +142,13 @@ async def read_post(
     current_user: User = Depends(get_current_user),
 ):
     """Get detailed post content and metadata."""
-    result = await db.execute(select(CommunityPost).filter(CommunityPost.id == post_id))
+    result = await db.execute(
+        select(CommunityPost)
+        .options(
+            selectinload(CommunityPost.author), selectinload(CommunityPost.category)
+        )
+        .filter(CommunityPost.id == post_id)
+    )
     post = result.scalars().first()
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
@@ -182,6 +201,7 @@ async def read_comments(post_id: UUID, db: AsyncSession = Depends(get_db)):
     """Fetch comments for a post."""
     result = await db.execute(
         select(CommunityComment)
+        .options(selectinload(CommunityComment.author))
         .filter(CommunityComment.post_id == post_id)
         .order_by(CommunityComment.created_at.asc())
     )
@@ -209,5 +229,11 @@ async def create_comment(
     post.comments_count += 1
     db.add(comment)
     await db.commit()
-    await db.refresh(comment)
-    return comment
+
+    # Fetch with relationships for the response model
+    result = await db.execute(
+        select(CommunityComment)
+        .options(selectinload(CommunityComment.author))
+        .filter(CommunityComment.id == comment.id)
+    )
+    return result.scalars().first()

@@ -7,8 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import (check_professional_subscription,
-                          get_current_non_viewer, get_current_user, get_db,
-                          set_tenant_context)
+                          get_current_non_viewer, get_current_user, get_db)
 from app.db.models.inventory import InventoryItem
 from app.db.models.inventory_history import InventoryAction, InventoryHistory
 from app.db.models.user import User
