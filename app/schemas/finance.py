@@ -56,6 +56,8 @@ class ExpenditureResponse(ExpenditureBase):
     farmer_id: UUID4
     inventory_item_id: Optional[UUID4]
     supplier_id: Optional[UUID4]
+    related_id: Optional[UUID4] = None
+    related_type: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -101,5 +103,6 @@ class SaleResponse(SaleBase):
     id: UUID4
     flock_id: UUID4
     farmer_id: UUID4
+    customer_id: Optional[UUID4] = None
 
     model_config = ConfigDict(from_attributes=True)
