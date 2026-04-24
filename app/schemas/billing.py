@@ -91,7 +91,7 @@ class SubscriptionOverride(BaseModel):
 
 
 class MpesaCallbackResponse(BaseModel):
-    """Shape of the JSON body KukuFlow returns to Safaricom after processing a callback.
+    """Shape of the JSON body KukuFiti returns to Safaricom after processing a callback.
 
     Safaricom ignores the response body beyond confirming an HTTP 200; this schema
     exists so FastAPI generates accurate OpenAPI docs and we don't accidentally

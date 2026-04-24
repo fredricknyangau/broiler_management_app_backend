@@ -218,6 +218,13 @@ async def mpesa_callback(request: Request, db: AsyncSession = Depends(get_db)):
         subscription = sub_result.scalars().first()
 
         if subscription:
+            if subscription.status == SubscriptionStatus.ACTIVE:
+                _log.info(
+                    "Subscription already active",
+                    extra={"ref": subscription.mpesa_reference},
+                )
+                return {"status": "processed", "result_code": 0}
+
             if payment_successful:
                 _log.info(
                     "Activating subscription",
@@ -253,6 +260,10 @@ async def mpesa_callback(request: Request, db: AsyncSession = Depends(get_db)):
         sale = sale_result.scalars().first()
 
         if sale:
+            if sale.mpesa_transaction_id:
+                _log.info("Sale already confirmed", extra={"sale_id": str(sale.id)})
+                return {"status": "processed", "result_code": 0}
+
             if payment_successful:
                 _log.info("Confirming sale payment", extra={"sale_id": str(sale.id)})
                 callback_metadata = stk_callback.get("CallbackMetadata", {})
@@ -272,6 +283,10 @@ async def mpesa_callback(request: Request, db: AsyncSession = Depends(get_db)):
         exp = exp_result.scalars().first()
 
         if exp:
+            if exp.mpesa_transaction_id:
+                _log.info("Expenditure already confirmed", extra={"exp_id": str(exp.id)})
+                return {"status": "processed", "result_code": 0}
+
             if payment_successful:
                 _log.info("Confirming supply payment", extra={"exp_id": str(exp.id)})
                 callback_metadata = stk_callback.get("CallbackMetadata", {})

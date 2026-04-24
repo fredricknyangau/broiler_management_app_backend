@@ -197,7 +197,7 @@ app.include_router(
 )
 
 
-@app.get("/")
+@app.get("/", methods=["GET", "HEAD"])
 async def root():
     """Root endpoint - API information and links
 
@@ -214,7 +214,7 @@ async def root():
     }
 
 
-@app.get("/health", tags=["Health"])
+@app.get("/health", tags=["Health"], methods=["GET", "HEAD"])
 async def health_check():
     """Health check endpoint
 
