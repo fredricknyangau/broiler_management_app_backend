@@ -36,6 +36,13 @@ db-shell:
 migrate:
 	docker compose exec -T api alembic upgrade head
 
+migrate-check:
+	docker compose exec -T api alembic check
+
+revision:
+	@read -p "Enter migration description: " desc; \
+	docker compose exec -T api alembic revision --autogenerate -m "$$desc"
+
 test:
 	docker compose exec -T api pytest
 

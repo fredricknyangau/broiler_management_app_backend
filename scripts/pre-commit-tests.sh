@@ -68,6 +68,11 @@ main() {
       failed_tests+=("tests")
     fi
 
+    # Run migration check
+    if ! run_with_timing "make migrate-check" "Database migration check"; then
+      failed_tests+=("migrations")
+    fi
+
     # Run linting
     if ! run_with_timing "make lint" "Code linting"; then
       failed_tests+=("lint")
