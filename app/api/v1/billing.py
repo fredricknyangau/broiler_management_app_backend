@@ -173,7 +173,6 @@ async def mpesa_callback(request: Request, db: AsyncSession = Depends(get_db)):
 
         checkout_request_id = stk_callback.get("CheckoutRequestID")
         callback_result_code = stk_callback.get("ResultCode")
-        callback_result_desc = stk_callback.get("ResultDesc", "")
 
         _log.info(
             "STK callback parsed",
@@ -185,17 +184,13 @@ async def mpesa_callback(request: Request, db: AsyncSession = Depends(get_db)):
             return {"status": "ignored", "reason": "No CheckoutRequestID"}
 
         # ── Canonical verification via STK Query ───────────────────────────────
-        # Never trust the callback result_code alone. Re-query Safaricom to confirm.
         verified_code: int | None = None
         try:
             query_result = await mpesa_service.query_stk_status(checkout_request_id)
-            # Safaricom returns ResultCode as a string in query responses
             raw_code = query_result.get("ResultCode")
             verified_code = int(raw_code) if raw_code is not None else None
             _log.info("STK Query verified", extra={"verified_code": verified_code})
         except Exception as qe:
-            # If STK Query fails (e.g., sandbox timeout), fall back to callback code
-            # but log a warning so this can be monitored.
             _log.warning(
                 "STK Query failed, falling back to callback result_code: %s", qe
             )
@@ -204,124 +199,115 @@ async def mpesa_callback(request: Request, db: AsyncSession = Depends(get_db)):
             )
 
         payment_successful = verified_code == 0
-
-        # ── Import finance models here to avoid circular imports at module level ─
-        from app.db.models.finance import Expenditure, Sale
-        from app.db.models.inventory import InventoryItem
-
-        # ── 1. Subscription lookup ─────────────────────────────────────────────
-        sub_result = await db.execute(
-            select(Subscription).filter(
-                Subscription.checkout_request_id == checkout_request_id
-            )
+        response = await _handle_callback_entity(
+            db, checkout_request_id, payment_successful, verified_code, stk_callback
         )
-        subscription = sub_result.scalars().first()
-
-        if subscription:
-            if subscription.status == SubscriptionStatus.ACTIVE:
-                _log.info(
-                    "Subscription already active",
-                    extra={"ref": subscription.mpesa_reference},
-                )
-                return {"status": "processed", "result_code": 0}
-
-            if payment_successful:
-                _log.info(
-                    "Activating subscription",
-                    extra={"ref": subscription.mpesa_reference},
-                )
-                subscription.status = SubscriptionStatus.ACTIVE
-                subscription.start_date = datetime.now(timezone.utc)
-                if subscription.billing_period == "yearly":
-                    subscription.end_date = datetime.now(timezone.utc) + timedelta(
-                        days=365
-                    )
-                else:
-                    subscription.end_date = datetime.now(timezone.utc) + timedelta(
-                        days=30
-                    )
-            else:
-                _log.info(
-                    "Payment failed for subscription",
-                    extra={
-                        "ref": subscription.mpesa_reference,
-                        "desc": callback_result_desc,
-                    },
-                )
-                subscription.status = SubscriptionStatus.CANCELLED
-
-            await db.commit()
-            return {"status": "processed", "result_code": verified_code}
-
-        # ── 2. Sale lookup ─────────────────────────────────────────────────────
-        sale_result = await db.execute(
-            select(Sale).filter(Sale.checkout_request_id == checkout_request_id)
-        )
-        sale = sale_result.scalars().first()
-
-        if sale:
-            if sale.mpesa_transaction_id:
-                _log.info("Sale already confirmed", extra={"sale_id": str(sale.id)})
-                return {"status": "processed", "result_code": 0}
-
-            if payment_successful:
-                _log.info("Confirming sale payment", extra={"sale_id": str(sale.id)})
-                callback_metadata = stk_callback.get("CallbackMetadata", {})
-                for element in callback_metadata.get("Item", []):
-                    if element.get("Name") == "MpesaReceiptNumber":
-                        sale.mpesa_transaction_id = element.get("Value")
-                        break
-            await db.commit()
-            return {"status": "processed", "result_code": verified_code}
-
-        # ── 3. Expenditure / supply order lookup ───────────────────────────────
-        exp_result = await db.execute(
-            select(Expenditure).filter(
-                Expenditure.checkout_request_id == checkout_request_id
-            )
-        )
-        exp = exp_result.scalars().first()
-
-        if exp:
-            if exp.mpesa_transaction_id:
-                _log.info("Expenditure already confirmed", extra={"exp_id": str(exp.id)})
-                return {"status": "processed", "result_code": 0}
-
-            if payment_successful:
-                _log.info("Confirming supply payment", extra={"exp_id": str(exp.id)})
-                callback_metadata = stk_callback.get("CallbackMetadata", {})
-                for element in callback_metadata.get("Item", []):
-                    if element.get("Name") == "MpesaReceiptNumber":
-                        exp.mpesa_transaction_id = element.get("Value")
-                        break
-
-                if exp.inventory_item_id and exp.quantity:
-                    item_result = await db.execute(
-                        select(InventoryItem).filter(
-                            InventoryItem.id == exp.inventory_item_id
-                        )
-                    )
-                    inv_item = item_result.scalars().first()
-                    if inv_item:
-                        inv_item.current_stock += exp.quantity
-                        _log.info(
-                            "Stock incremented",
-                            extra={"item": inv_item.name, "qty": exp.quantity},
-                        )
-
-            await db.commit()
-            return {"status": "processed", "result_code": verified_code}
-
-        _log.warning(
-            "No entity matched CheckoutRequestID",
-            extra={"checkout_id": checkout_request_id},
-        )
-        return {"status": "ignored", "reason": "No matching entity found"}
+        return response
 
     except Exception as e:
         _log.exception("Error processing M-Pesa callback: %s", e)
         # Always return 200 to Safaricom so it doesn't retry indefinitely
         return {"status": "error", "detail": "Internal processing error"}
+
+
+async def _handle_callback_entity(
+    db: AsyncSession,
+    checkout_request_id: str,
+    payment_successful: bool,
+    verified_code: int | None,
+    stk_callback: dict,
+) -> dict:
+    """Helper to process the specific entity (Subscription, Sale, or Expenditure)
+    matched by a CheckoutRequestID. This reduces complexity in the main callback handler.
+    """
+    _log = structlog.get_logger(__name__)
+
+    # 1. Subscription lookup
+    sub_res = await db.execute(
+        select(Subscription).filter(
+            Subscription.checkout_request_id == checkout_request_id
+        )
+    )
+    subscription = sub_res.scalars().first()
+
+    # ── Import finance models here to avoid circular imports at module level ─
+    from app.db.models.finance import Expenditure, Sale
+    from app.db.models.inventory import InventoryItem
+
+    # 2. Sale lookup
+    sale = None
+    if not subscription:
+        sale_res = await db.execute(
+            select(Sale).filter(Sale.checkout_request_id == checkout_request_id)
+        )
+        sale = sale_res.scalars().first()
+
+    # 3. Expenditure lookup
+    exp = None
+    if not subscription and not sale:
+        exp_res = await db.execute(
+            select(Expenditure).filter(
+                Expenditure.checkout_request_id == checkout_request_id
+            )
+        )
+        exp = exp_res.scalars().first()
+
+    res_code = verified_code
+    if subscription:
+        if subscription.status == SubscriptionStatus.ACTIVE:
+            _log.info("Subscription already active", extra={"ref": subscription.mpesa_reference})
+            res_code = 0
+        else:
+            if payment_successful:
+                _log.info("Activating subscription", extra={"ref": subscription.mpesa_reference})
+                subscription.status = SubscriptionStatus.ACTIVE
+                subscription.start_date = datetime.now(timezone.utc)
+                days = 365 if subscription.billing_period == "yearly" else 30
+                subscription.end_date = datetime.now(timezone.utc) + timedelta(days=days)
+            else:
+                _log.info("Payment failed for sub", extra={"ref": subscription.mpesa_reference})
+                subscription.status = SubscriptionStatus.CANCELLED
+            await db.commit()
+
+    elif sale:
+        if sale.mpesa_transaction_id:
+            _log.info("Sale already confirmed", extra={"sale_id": str(sale.id)})
+            res_code = 0
+        else:
+            if payment_successful:
+                _log.info("Confirming sale payment", extra={"sale_id": str(sale.id)})
+                for element in stk_callback.get("CallbackMetadata", {}).get("Item", []):
+                    if element.get("Name") == "MpesaReceiptNumber":
+                        sale.mpesa_transaction_id = element.get("Value")
+                        break
+            await db.commit()
+
+    elif exp:
+        if exp.mpesa_transaction_id:
+            _log.info("Expenditure already confirmed", extra={"exp_id": str(exp.id)})
+            res_code = 0
+        else:
+            if payment_successful:
+                _log.info("Confirming supply payment", extra={"exp_id": str(exp.id)})
+                for element in stk_callback.get("CallbackMetadata", {}).get("Item", []):
+                    if element.get("Name") == "MpesaReceiptNumber":
+                        exp.mpesa_transaction_id = element.get("Value")
+                        break
+                if exp.inventory_item_id and exp.quantity:
+                    inv_res = await db.execute(
+                        select(InventoryItem).filter(InventoryItem.id == exp.inventory_item_id)
+                    )
+                    inv_item = inv_res.scalars().first()
+                    if inv_item:
+                        inv_item.current_stock += exp.quantity
+            await db.commit()
+
+    else:
+        _log.warning("No entity matched CheckoutRequestID", extra={"checkout_id": checkout_request_id})
+        return {"status": "ignored", "reason": "No matching entity found"}
+
+    return {"status": "processed", "result_code": res_code}
+
 
 
 @router.get("/my-subscription", response_model=SubscriptionResponse)
